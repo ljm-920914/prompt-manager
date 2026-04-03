@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Prompt {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  description String?
+  source      String?  // 来源链接
+  sourceType  String   // link, video, image, text
+  tags        Tag[]    @relation("PromptTags")
+  category    String   @default("未分类")
+  isFavorite  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tag {
+  id      String   @id @default(cuid())
+  name    String   @unique
+  prompts Prompt[] @relation("PromptTags")
+}
