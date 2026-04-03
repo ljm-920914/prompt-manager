@@ -56,49 +56,75 @@ export const usePromptStore = create<PromptStore>((set, get) => ({
     const { selectedCategory, searchQuery, showFavoritesOnly } = get()
     set({ isLoading: true })
     
-    const params = new URLSearchParams()
-    if (selectedCategory !== 'all') params.append('category', selectedCategory)
-    if (searchQuery) params.append('search', searchQuery)
-    if (showFavoritesOnly) params.append('favorite', 'true')
-    
-    const res = await fetch(`/api/prompts?${params}`)
-    const prompts = await res.json()
-    set({ prompts, isLoading: false })
+    try {
+      const params = new URLSearchParams()
+      if (selectedCategory !== 'all') params.append('category', selectedCategory)
+      if (searchQuery) params.append('search', searchQuery)
+      if (showFavoritesOnly) params.append('favorite', 'true')
+      
+      const res = await fetch(`/api/prompts?${params}`)
+      const prompts = await res.json()
+      set({ prompts: Array.isArray(prompts) ? prompts : [], isLoading: false })
+    } catch (error) {
+      console.error('fetchPrompts error:', error)
+      set({ prompts: [], isLoading: false })
+    }
   },
 
   fetchCategories: async () => {
-    const res = await fetch('/api/categories')
-    const categories = await res.json()
-    set({ categories })
+    try {
+      const res = await fetch('/api/categories')
+      const categories = await res.json()
+      set({ categories: Array.isArray(categories) ? categories : [] })
+    } catch (error) {
+      console.error('fetchCategories error:', error)
+      set({ categories: [] })
+    }
   },
 
   addPrompt: async (promptData) => {
-    const res = await fetch('/api/prompts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(promptData)
-    })
-    const newPrompt = await res.json()
-    set((state) => ({ prompts: [newPrompt, ...state.prompts] }))
+    try {
+      const res = await fetch('/api/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(promptData)
+      })
+      const newPrompt = await res.json()
+      if (newPrompt && newPrompt.id) {
+        set((state) => ({ prompts: [newPrompt, ...state.prompts] }))
+      }
+    } catch (error) {
+      console.error('addPrompt error:', error)
+    }
   },
 
   updatePrompt: async (id, data) => {
-    const res = await fetch(`/api/prompts/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const updatedPrompt = await res.json()
-    set((state) => ({
-      prompts: state.prompts.map((p) => (p.id === id ? updatedPrompt : p))
-    }))
+    try {
+      const res = await fetch(`/api/prompts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      const updatedPrompt = await res.json()
+      if (updatedPrompt && updatedPrompt.id) {
+        set((state) => ({
+          prompts: state.prompts.map((p) => (p.id === id ? updatedPrompt : p))
+        }))
+      }
+    } catch (error) {
+      console.error('updatePrompt error:', error)
+    }
   },
 
   deletePrompt: async (id) => {
-    await fetch(`/api/prompts/${id}`, { method: 'DELETE' })
-    set((state) => ({
-      prompts: state.prompts.filter((p) => p.id !== id)
-    }))
+    try {
+      await fetch(`/api/prompts/${id}`, { method: 'DELETE' })
+      set((state) => ({
+        prompts: state.prompts.filter((p) => p.id !== id)
+      }))
+    } catch (error) {
+      console.error('deletePrompt error:', error)
+    }
   },
 
   toggleFavorite: async (id) => {
