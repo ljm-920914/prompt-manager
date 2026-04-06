@@ -8,27 +8,23 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { 
-  Plus, 
   Search, 
   Link, 
   Image, 
   Video, 
   FileText, 
   Folder,
-  Share2,
   Copy,
-  Edit,
   Trash2,
   Download,
   Upload,
   Sparkles,
   MoreHorizontal,
-  X,
   Loader2,
   Wand2,
   ExternalLink,
   Eye,
-  GripVertical
+  Github
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -278,6 +274,7 @@ export default function Home() {
                 <Wand2 className="h-5 w-5 text-primary-foreground" />
               </div>
               <h1 className="text-xl font-bold">Prompt Manager</h1>
+              <Badge variant="outline" className="ml-2 text-xs">v2.0</Badge>
             </div>
             
             <div className="flex-1 max-w-md">
@@ -308,6 +305,15 @@ export default function Home() {
                 <Download className="h-4 w-4 mr-1" />
                 导出
               </Button>
+              <a 
+                href="https://github.com/ljm-920914/prompt-manager" 
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                <Button variant="ghost" size="icon">
+                  <Github className="h-5 w-5" />
+                </Button>
+              </a>
             </div>
           </div>
         </div>
