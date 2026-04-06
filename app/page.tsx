@@ -272,36 +272,36 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c0c12] text-[#e8e8f0]">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[#272730] bg-[#0c0c12]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-xl">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#10b981] to-[#6366f1] flex items-center justify-center shadow-lg">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
                 <Wand2 className="h-5 w-5 text-white" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold text-white tracking-tight">Prompt Manager</h1>
-                <p className="text-xs text-[#6b6b7b]">AI 提示词管理</p>
+                <h1 className="text-lg font-bold text-foreground tracking-tight">Prompt Manager</h1>
+                <p className="text-xs text-muted-foreground">AI 提示词管理</p>
               </div>
             </div>
             
             {/* Search */}
             <div className="flex-1 max-w-md">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6b6b7b]" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="搜索提示词..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-10 bg-[#15151c] border-[#272730] text-[#e8e8f0] placeholder:text-[#6b6b7b] focus:border-[#10b981] focus:ring-[#10b981]/20 rounded-xl"
+                  className="pl-10 pr-10"
                 />
                 {searchQuery && (
                   <button 
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b6b7b] hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -313,18 +313,18 @@ export default function Home() {
             <div className="flex items-center gap-1">
               <input type="file" accept=".json" onChange={handleImport} className="hidden" id="import-file" />
               <Button variant="ghost" size="sm" onClick={() => document.getElementById('import-file')?.click()}
-                className="hidden sm:flex text-[#6b6b7b] hover:text-[#10b981] hover:bg-[#10b981]/10">
+                className="hidden sm:flex">
                 <Upload className="h-4 w-4 mr-2" />导入
               </Button>
               <Button variant="ghost" size="sm" onClick={handleExport}
-                className="hidden sm:flex text-[#6b6b7b] hover:text-[#10b981] hover:bg-[#10b981]/10">
+                className="hidden sm:flex">
                 <Download className="h-4 w-4 mr-2" />导出
               </Button>
               <div className="hidden sm:block">
                 <ThemeToggle />
               </div>
               <a href="https://github.com/ljm-920914/prompt-manager" target="_blank" rel="noopener noreferrer">
-                <Button variant="ghost" size="icon" className="text-[#6b6b7b] hover:text-white">
+                <Button variant="ghost" size="icon">
                   <GitHubIcon className="h-5 w-5" />
                 </Button>
               </a>
@@ -332,7 +332,7 @@ export default function Home() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="lg:hidden text-[#6b6b7b]"
+                className="lg:hidden"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               >
                 <Filter className="h-5 w-5" />
@@ -358,8 +358,8 @@ export default function Home() {
           <aside className="hidden lg:block w-56 shrink-0">
             <div className="sticky top-20 space-y-2">
               <div className="flex items-center justify-between px-2 mb-3">
-                <span className="text-sm font-medium text-[#6b6b7b]">分类</span>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#6b6b7b] hover:text-[#10b981]"
+                <span className="text-sm font-medium text-muted-foreground">分类</span>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
                   onClick={() => setIsCategoryManagerOpen(true)}>
                   <Settings className="h-4 w-4" />
                 </Button>
@@ -369,14 +369,14 @@ export default function Home() {
                 <button onClick={() => setSelectedCategory(null)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                     ${selectedCategory === null 
-                      ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30" 
-                      : "text-[#6b6b7b] hover:text-white hover:bg-[#1e1e28]"
+                      ? "bg-primary/10 text-primary border border-primary/30" 
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     }`}>
                   <span className="flex items-center gap-2.5">
                     <Folder className="h-4 w-4" />
                     全部提示词
                   </span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#1e1e28] text-[#6b6b7b]">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
                     {getCategoryCount()}
                   </span>
                 </button>
@@ -386,7 +386,7 @@ export default function Home() {
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                       ${selectedCategory === category.id 
                         ? "border" 
-                        : "text-[#6b6b7b] hover:text-white hover:bg-[#1e1e28]"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
                       }`}
                     style={selectedCategory === category.id ? {
                       backgroundColor: `${category.color}15`,
@@ -397,7 +397,7 @@ export default function Home() {
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
                       {category.name}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#1e1e28] text-[#6b6b7b]">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
                       {getCategoryCount(category.id)}
                     </span>
                   </button>
@@ -416,9 +416,9 @@ export default function Home() {
                 className="fixed inset-0 z-40 lg:hidden"
               >
                 <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
-                <div className="absolute left-0 top-0 bottom-0 w-64 bg-[#0c0c12] border-r border-[#272730] p-4">
+                <div className="absolute left-0 top-0 bottom-0 w-64 bg-background border-r border-border p-4">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-[#6b6b7b]">分类</span>
+                    <span className="text-sm font-medium text-muted-foreground">分类</span>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
                       onClick={() => setIsCategoryManagerOpen(true)}>
                       <Settings className="h-4 w-4" />
@@ -428,8 +428,8 @@ export default function Home() {
                     <button onClick={() => { setSelectedCategory(null); setIsMobileMenuOpen(false); }}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                         ${selectedCategory === null 
-                          ? "bg-[#10b981]/10 text-[#10b981]" 
-                          : "text-[#6b6b7b] hover:text-white hover:bg-[#1e1e28]"
+                          ? "bg-primary/10 text-primary" 
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
                         }`}>
                       <span className="flex items-center gap-2.5">
                         <Folder className="h-4 w-4" />
@@ -443,7 +443,7 @@ export default function Home() {
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                           ${selectedCategory === category.id 
                             ? "" 
-                            : "text-[#6b6b7b] hover:text-white hover:bg-[#1e1e28]"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
                           }`}
                         style={selectedCategory === category.id ? {
                           backgroundColor: `${category.color}15`,
@@ -467,14 +467,14 @@ export default function Home() {
             {/* Toolbar */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold text-white">
+                <h2 className="text-base font-semibold text-foreground">
                   {selectedCategory ? categories.find(c => c.id === selectedCategory)?.name : '全部提示词'}
                 </h2>
-                <span className="text-sm text-[#6b6b7b]">({prompts.length})</span>
+                <span className="text-sm text-muted-foreground">({prompts.length})</span>
                 {(searchQuery || selectedCategory) && (
                   <button 
                     onClick={clearSearch}
-                    className="text-xs text-[#10b981] hover:underline ml-2"
+                    className="text-xs text-primary hover:underline ml-2"
                   >
                     清除筛选
                   </button>
@@ -484,7 +484,7 @@ export default function Home() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className={`h-8 w-8 ${viewMode === 'grid' ? 'text-[#10b981]' : 'text-[#6b6b7b]'}`}
+                  className={`h-8 w-8 ${viewMode === 'grid' ? 'text-primary' : 'text-muted-foreground'}`}
                   onClick={() => setViewMode('grid')}
                 >
                   <LayoutGrid className="h-4 w-4" />
@@ -492,7 +492,7 @@ export default function Home() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className={`h-8 w-8 ${viewMode === 'list' ? 'text-[#10b981]' : 'text-[#6b6b7b]'}`}
+                  className={`h-8 w-8 ${viewMode === 'list' ? 'text-primary' : 'text-muted-foreground'}`}
                   onClick={() => setViewMode('list')}
                 >
                   <List className="h-4 w-4" />
@@ -527,13 +527,13 @@ export default function Home() {
                         className="group"
                       >
                         <div onClick={() => handleOpenDetail(prompt)}
-                          className={`relative bg-[#15151c] rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:bg-[#1a1a22] border border-[#272730] hover:border-[#3a3a45]
+                          className={`relative bg-card rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:bg-muted border border-border hover:border-ring
                             ${viewMode === 'list' ? 'flex items-center gap-4 p-4' : ''}
                           `}
                         >
                           {/* Preview for grid view */}
                           {viewMode === 'grid' && preview && (
-                            <div className="relative aspect-[16/10] overflow-hidden bg-[#0c0c12]">
+                            <div className="relative aspect-[16/10] overflow-hidden bg-background">
                               {preview.type === 'image' ? (
                                 <img src={preview.data} alt={prompt.title}
                                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -549,7 +549,7 @@ export default function Home() {
                                 </>
                               )}
                               
-                              <div className="absolute inset-0 bg-gradient-to-t from-[#15151c] via-transparent to-transparent" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent" />
                               {/* Source type badge */}
                               <div className="absolute top-2 left-2">
                                 <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
@@ -564,27 +564,26 @@ export default function Home() {
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 {viewMode === 'list' && (
-                                  <div className="p-1.5 rounded-lg bg-[#1e1e28] text-[#6b6b7b]">
+                                  <div className="p-1.5 rounded-lg bg-muted text-muted-foreground">
                                     {getSourceIcon(prompt.sourceType)}
                                   </div>
                                 )}
                                 
-                                <h3 className="font-medium text-white truncate">{prompt.title}</h3>
+                                <h3 className="font-medium text-foreground truncate">{prompt.title}</h3>
                               </div>
                               <DropdownMenu>
                                 <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
                                   <Button variant="ghost" size="icon" 
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-[#6b6b7b] hover:text-white hover:bg-[#1e1e28]">
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="bg-[#1a1a22] border-[#272730]">
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id); }}
-                                    className="text-[#e8e8f0] hover:bg-[#10b981]/10 hover:text-[#10b981]">
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id); }}>
                                     <Copy className="h-4 w-4 mr-2" />复制
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeletePrompt(prompt.id); }}
-                                    className="text-[#ef4444] hover:bg-[#ef4444]/10">
+                                    className="text-destructive">
                                     <Trash2 className="h-4 w-4 mr-2" />删除
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -604,18 +603,18 @@ export default function Home() {
                               </div>
                             )}
                             
-                            <p className={`text-sm text-[#6b6b7b] font-mono bg-[#0c0c12] rounded-lg border border-[#272730]
+                            <p className={`text-sm text-muted-foreground font-mono bg-muted rounded-lg border border-border
                               ${viewMode === 'grid' ? 'p-3 line-clamp-3' : 'p-2 line-clamp-1 flex-1'}
                             `}
                             >
                               {prompt.content}
                             </p>
                             
-                            <div className={`flex items-center justify-between mt-3 pt-3 border-t border-[#272730]
+                            <div className={`flex items-center justify-between mt-3 pt-3 border-t border-border
                               ${viewMode === 'list' ? 'border-0 pt-0 mt-2' : ''}
                             `}
                             >
-                              <div className="flex items-center gap-4 text-xs text-[#6b6b7b]">
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Eye className="h-3.5 w-3.5" />{prompt.viewCount}
                                 </span>
