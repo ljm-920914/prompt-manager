@@ -23,8 +23,7 @@ import {
   Loader2,
   Wand2,
   ExternalLink,
-  Eye,
-  Github
+  Eye
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,6 +34,7 @@ import {
 import { toast } from "sonner"
 import { promptApi, categoryApi, backupApi, aiExtract, type Prompt, type Category } from "@/lib/storage"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { GitHubIcon } from "@/components/github-icon"
 
 export default function Home() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
@@ -275,7 +275,7 @@ export default function Home() {
                 <Wand2 className="h-5 w-5 text-primary-foreground" />
               </div>
               <h1 className="text-xl font-bold">Prompt Manager</h1>
-              <Badge variant="outline" className="ml-2 text-xs">v2.1</Badge>
+              <Badge variant="outline" className="ml-2 text-xs">v2.2</Badge>
             </div>
             
             <div className="flex-1 max-w-md">
@@ -316,7 +316,7 @@ export default function Home() {
                 rel="noopener noreferrer"
               >
                 <Button variant="ghost" size="icon">
-                  <Github className="h-5 w-5" />
+                  <GitHubIcon className="h-5 w-5" />
                 </Button>
               </a>
             </div>

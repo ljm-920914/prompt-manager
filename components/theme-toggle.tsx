@@ -9,7 +9,6 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
-  // 避免 hydration 不匹配
   useEffect(() => {
     setMounted(true)
   }, [])
