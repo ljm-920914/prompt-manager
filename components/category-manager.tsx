@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Plus, Trash2, Palette } from "lucide-react"
+import { Plus, Trash2, Palette, Check } from "lucide-react"
 import { toast } from "sonner"
 import type { Category } from "@/lib/storage"
 
@@ -24,16 +25,16 @@ interface CategoryManagerProps {
 }
 
 const PRESET_COLORS = [
-  "#8b5cf6", // violet
-  "#3b82f6", // blue
-  "#22c55e", // green
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#ec4899", // pink
-  "#06b6d4", // cyan
-  "#f97316", // orange
-  "#6366f1", // indigo
-  "#84cc16", // lime
+  { color: "#8b5cf6", name: "紫色" },
+  { color: "#3b82f6", name: "蓝色" },
+  { color: "#10b981", name: "绿色" },
+  { color: "#f59e0b", name: "橙色" },
+  { color: "#ef4444", name: "红色" },
+  { color: "#ec4899", name: "粉色" },
+  { color: "#06b6d4", name: "青色" },
+  { color: "#f97316", name: "橘色" },
+  { color: "#6366f1", name: "靛蓝" },
+  { color: "#84cc16", name: "柠檬" },
 ]
 
 export function CategoryManager({
@@ -46,7 +47,7 @@ export function CategoryManager({
   const [newCategory, setNewCategory] = useState({
     name: "",
     description: "",
-    color: PRESET_COLORS[0],
+    color: PRESET_COLORS[0].color,
   })
 
   const handleCreate = () => {
@@ -65,7 +66,7 @@ export function CategoryManager({
     setNewCategory({
       name: "",
       description: "",
-      color: PRESET_COLORS[0],
+      color: PRESET_COLORS[0].color,
     })
 
     toast.success("分类创建成功")
@@ -81,87 +82,102 @@ export function CategoryManager({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>管理分类</DialogTitle>
+      <DialogContent className="max-w-md bg-[#15151c] border-[#272730] p-0 gap-0">
+        <DialogHeader className="p-6 pb-4 border-b border-[#272730]">
+          <DialogTitle className="text-lg font-semibold text-white">管理分类</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 mt-4">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           {/* Create New Category */}
-          <div className="space-y-4 p-4 bg-muted/50 rounded-xl">
-            <h3 className="text-sm font-medium flex items-center gap-2">
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-[#6b6b7b] flex items-center gap-2">
               <Plus className="h-4 w-4" />
               新建分类
             </h3>
 
-            <div className="space-y-2">
-              <Label>分类名称</Label>
-              <Input
-                placeholder="输入分类名称"
-                value={newCategory.name}
-                onChange={(e) =>
-                  setNewCategory((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>描述（可选）</Label>
-              <Input
-                placeholder="分类描述"
-                value={newCategory.description}
-                onChange={(e) =>
-                  setNewCategory((prev) => ({ ...prev, description: e.target.value }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Palette className="h-4 w-4" />
-                颜色
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {PRESET_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setNewCategory((prev) => ({ ...prev, color }))}
-                    className={`w-8 h-8 rounded-lg transition-all ${
-                      newCategory.color === color
-                        ? "ring-2 ring-offset-2 ring-primary scale-110"
-                        : "hover:scale-105"
-                    }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm text-[#6b6b7b]">分类名称</Label>
+                <Input
+                  placeholder="输入分类名称"
+                  value={newCategory.name}
+                  onChange={(e) =>
+                    setNewCategory((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  className="bg-[#0c0c12] border-[#272730] text-white placeholder:text-[#6b6b7b]"
+                />
               </div>
-            </div>
 
-            <Button onClick={handleCreate} className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
-              创建分类
-            </Button>
+              <div className="space-y-1.5">
+                <Label className="text-sm text-[#6b6b7b]">描述（可选）</Label>
+                <Input
+                  placeholder="分类描述"
+                  value={newCategory.description}
+                  onChange={(e) =>
+                    setNewCategory((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  className="bg-[#0c0c12] border-[#272730] text-white placeholder:text-[#6b6b7b]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm text-[#6b6b7b] flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  选择颜色
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_COLORS.map((preset) => (
+                    <button
+                      key={preset.color}
+                      onClick={() => setNewCategory((prev) => ({ ...prev, color: preset.color }))}
+                      className={`w-8 h-8 rounded-lg transition-all relative ${
+                        newCategory.color === preset.color
+                          ? "ring-2 ring-white ring-offset-2 ring-offset-[#15151c] scale-110"
+                          : "hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: preset.color }}
+                      title={preset.name}
+                    >
+                      {newCategory.color === preset.color && (
+                        <Check className="h-4 w-4 text-white absolute inset-0 m-auto" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleCreate} 
+                className="w-full bg-[#10b981] text-[#0c0c12] hover:bg-[#10b981]/90"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                创建分类
+              </Button>
+            </div>
           </div>
 
           {/* Category List */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">现有分类</h3>
-            <ScrollArea className="h-[200px]">
-              <div className="space-y-2">
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-[#6b6b7b]">现有分类</h3>
+            <div className="space-y-2">
+              <AnimatePresence>
                 {categories.map((category) => (
-                  <div
+                  <motion.div
                     key={category.id}
-                    className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="flex items-center justify-between p-3 bg-[#0c0c12] rounded-xl border border-[#272730]"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div
-                        className="w-3 h-3 rounded-full"
+                        className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: category.color }}
                       />
-                      <div>
-                        <p className="font-medium">{category.name}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium text-white truncate">{category.name}</p>
                         {category.description && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-[#6b6b7b] truncate">
                             {category.description}
                           </p>
                         )}
@@ -170,21 +186,22 @@ export function CategoryManager({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive"
+                      className="h-8 w-8 text-[#6b6b7b] hover:text-[#ef4444] hover:bg-[#ef4444]/10 shrink-0"
                       onClick={() => handleDelete(category.id, category.name)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </motion.div>
                 ))}
+              </AnimatePresence>
 
-                {categories.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm">暂无分类</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
+              {categories.length === 0 && (
+                <div className="text-center py-8 text-[#6b6b7b] bg-[#0c0c12] rounded-xl border border-dashed border-[#272730]">
+                  <p className="text-sm">暂无分类</p>
+                  <p className="text-xs mt-1">创建分类来整理你的提示词</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>
