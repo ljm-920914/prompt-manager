@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { 
   Search, 
   Link, 
@@ -16,15 +15,11 @@ import {
   Trash2,
   Download,
   Upload,
-  Sparkles,
+  Wand2,
   MoreHorizontal,
-  Loader2,
   Eye,
-  ChevronRight,
   Filter,
   Settings,
-  Wand2,
-  Plus,
   LayoutGrid,
   List,
   X,
@@ -115,7 +110,7 @@ export default function Home() {
             content: result.content, 
             sourceType: 'IMAGE',
             sourceFileName: file.name, 
-            sourceFileData: base64, 
+            sourceFileData: result.imageData || base64, 
             tags: result.tags, 
             isPublic: false,
           })
@@ -124,6 +119,7 @@ export default function Home() {
         }
         reader.readAsDataURL(file)
       } else if (file.type.startsWith('video/')) {
+        toast.info("正在处理视频，请稍候...")
         const result = await aiExtract.fromVideo(file)
         promptApi.create({
           title: result.title, 
@@ -154,6 +150,7 @@ export default function Home() {
         toast.error(`不支持的文件类型: ${file.type || file.name}`)
       }
     } catch (error) {
+      console.error('处理失败:', error)
       toast.error(`处理失败: ${file.name}`)
     } finally {
       setIsProcessing(false)

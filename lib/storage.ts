@@ -9,8 +9,8 @@ export interface Prompt {
   sourceType: 'TEXT' | 'LINK' | 'IMAGE' | 'VIDEO'
   sourceUrl?: string
   sourceFileName?: string
-  sourceFileData?: string // base64 for images
-  sourceVideoData?: string // base64 for video thumbnail
+  sourceFileData?: string // base64 for images and videos
+  sourceVideoData?: string // base64 for video thumbnail (first frame)
   categoryId?: string
   tags: string[]
   isPublic: boolean
@@ -253,7 +253,7 @@ export const backupApi = {
   }
 }
 
-// 生成视频缩略图
+// 生成视频缩略图（第一帧）
 async function generateVideoThumbnail(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -265,58 +265,78 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       return
     }
 
+    const objectUrl = URL.createObjectURL(file)
+    
     video.preload = 'metadata'
-    video.crossOrigin = 'anonymous'
+    video.muted = true
+    video.playsInline = true
+    
+    // 设置超时
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('生成缩略图超时'))
+    }, 10000)
     
     video.onloadedmetadata = () => {
-      // 在视频的 1/4 处截取缩略图
-      video.currentTime = Math.min(video.duration * 0.25, 5)
+      // 在视频第一帧处截取（或者0.1秒处）
+      video.currentTime = Math.min(0.1, video.duration * 0.01)
     }
     
     video.onseeked = () => {
-      // 设置 canvas 尺寸为视频尺寸（限制最大宽度）
-      const maxWidth = 640
-      const scale = Math.min(1, maxWidth / video.videoWidth)
-      canvas.width = video.videoWidth * scale
-      canvas.height = video.videoHeight * scale
-      
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      clearTimeout(timeout)
       
       try {
-        const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
+        // 设置 canvas 尺寸（限制最大宽度为 480px）
+        const maxWidth = 480
+        const scale = Math.min(1, maxWidth / video.videoWidth)
+        canvas.width = video.videoWidth * scale
+        canvas.height = video.videoHeight * scale
+        
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
         resolve(thumbnail)
       } catch (err) {
         reject(err)
+      } finally {
+        URL.revokeObjectURL(objectUrl)
+        video.remove()
       }
-      
-      // 清理
-      URL.revokeObjectURL(video.src)
     }
     
     video.onerror = () => {
-      URL.revokeObjectURL(video.src)
+      clearTimeout(timeout)
+      URL.revokeObjectURL(objectUrl)
       reject(new Error('视频加载失败'))
     }
     
-    video.src = URL.createObjectURL(file)
+    video.src = objectUrl
   })
 }
 
-// 将视频文件转为 base64
-async function videoToBase64(file: File): Promise<string> {
+// 将视频文件转为 base64（限制大小为 50MB）
+async function videoToBase64(file: File): Promise<string | undefined> {
+  // 限制视频大小为 50MB
+  const MAX_SIZE = 50 * 1024 * 1024
+  
+  if (file.size > MAX_SIZE) {
+    console.warn(`视频文件过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，仅保存缩略图`)
+    return undefined
+  }
+  
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       resolve(e.target?.result as string)
     }
-    reader.onerror = reject
+    reader.onerror = () => reject(new Error('读取视频失败'))
     reader.readAsDataURL(file)
   })
 }
 
 // AI 提取模拟
 export const aiExtract = {
-  fromImage: async (fileName: string, base64Data: string): Promise<{ title: string; content: string; tags: string[] }> => {
+  fromImage: async (fileName: string, base64Data: string): Promise<{ title: string; content: string; tags: string[]; imageData?: string }> => {
     // 模拟 AI 分析图片提取提示词
     await new Promise(resolve => setTimeout(resolve, 1500))
     
@@ -336,23 +356,25 @@ positive prompt:
 negative prompt:
 - blurry, low quality
 - distorted, deformed`,
-      tags: ['AI绘画', 'Midjourney', '图片提取']
+      tags: ['AI绘画', 'Midjourney', '图片提取'],
+      imageData: base64Data
     }
   },
 
   fromVideo: async (file: File): Promise<{ title: string; content: string; tags: string[]; thumbnail?: string; videoData?: string }> => {
-    // 同时生成缩略图和获取视频数据
-    const [thumbnail, videoData] = await Promise.all([
-      generateVideoThumbnail(file).catch(() => undefined),
-      videoToBase64(file)
-    ])
-    
-    // 模拟 AI 分析
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    return {
-      title: `从视频提取: ${file.name}`,
-      content: `// 从视频提取的提示词
+    try {
+      // 同时生成缩略图和获取视频数据
+      const [thumbnail, videoData] = await Promise.all([
+        generateVideoThumbnail(file),
+        videoToBase64(file).catch(() => undefined)
+      ])
+      
+      // 模拟 AI 分析
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      return {
+        title: `从视频提取: ${file.name}`,
+        content: `// 从视频提取的提示词
 
 视频内容分析:
 - 场景: 城市夜景
@@ -362,9 +384,21 @@ negative prompt:
 
 生成提示词:
 Cyberpunk cityscape at night, neon lights reflecting on wet streets, towering skyscrapers with holographic advertisements, flying vehicles, dystopian atmosphere, highly detailed, cinematic lighting, 8k quality`,
-      tags: ['视频分析', '赛博朋克', '场景描述'],
-      thumbnail,
-      videoData
+        tags: ['视频分析', '赛博朋克', '场景描述'],
+        thumbnail,
+        videoData
+      }
+    } catch (error) {
+      // 如果生成缩略图失败，仍然返回基本数据
+      console.error('视频处理失败:', error)
+      return {
+        title: `从视频提取: ${file.name}`,
+        content: `// 视频处理失败，请手动添加提示词
+
+文件: ${file.name}
+大小: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+        tags: ['视频', '待处理']
+      }
     }
   },
 

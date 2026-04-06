@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Image as ImageIcon, Link, FileText, Video, Play, Pause, Volume2, VolumeX } from "lucide-react"
+import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Image as ImageIcon, Link, FileText, Video, Play, Pause, Volume2, VolumeX, Maximize2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Prompt, Category } from "@/lib/storage"
 
@@ -45,7 +45,9 @@ export function PromptDetailDialog({
   const [activeTab, setActiveTab] = useState<"content" | "preview">("content")
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) {
@@ -53,6 +55,7 @@ export function PromptDetailDialog({
       setIsEditingTitle(false)
       setActiveTab("content")
       setIsPlaying(false)
+      setIsFullscreen(false)
     }
   }, [open])
 
@@ -152,6 +155,22 @@ export function PromptDetailDialog({
     }
   }
 
+  const toggleFullscreen = () => {
+    if (!videoContainerRef.current) return
+    
+    if (!document.fullscreenElement) {
+      videoContainerRef.current.requestFullscreen().then(() => {
+        setIsFullscreen(true)
+      }).catch(() => {
+        toast.error("无法进入全屏模式")
+      })
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false)
+      })
+    }
+  }
+
   // 判断是否有预览内容
   const hasPreview = prompt.sourceType === 'IMAGE' && prompt.sourceFileData || 
                      prompt.sourceType === 'VIDEO' && (prompt.sourceVideoData || prompt.sourceFileData)
@@ -160,6 +179,14 @@ export function PromptDetailDialog({
   const getVideoSource = () => {
     // 优先使用 sourceFileData（完整的视频数据）
     if (prompt.sourceFileData && prompt.sourceFileData.startsWith('data:video')) {
+      return prompt.sourceFileData
+    }
+    return null
+  }
+
+  // 获取图片源
+  const getImageSource = () => {
+    if (prompt.sourceType === 'IMAGE' && prompt.sourceFileData) {
       return prompt.sourceFileData
     }
     return null
@@ -332,47 +359,69 @@ export function PromptDetailDialog({
                   className="rounded-xl overflow-hidden border border-border bg-background"
                 >
                   {prompt.sourceType === 'VIDEO' ? (
-                    <div className="relative">
+                    <div ref={videoContainerRef} className="relative bg-black">
                       {getVideoSource() ? (
                         <>
                           <video
                             ref={videoRef}
                             src={getVideoSource()!}
-                            className="w-full max-h-[400px] object-contain"
+                            className="w-full max-h-[500px] object-contain"
                             onEnded={() => setIsPlaying(false)}
                             onPause={() => setIsPlaying(false)}
                             onPlay={() => setIsPlaying(true)}
                             muted={isMuted}
+                            playsInline
                           />
                           {/* Video controls overlay */}
-                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={togglePlay}
-                                className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-                              >
-                                {isPlaying ? (
-                                  <Pause className="h-5 w-5 text-white" />
-                                ) : (
-                                  <Play className="h-5 w-5 text-white ml-0.5" />
-                                )}
-                              </button>
-                              <span className="text-xs text-white/80 flex items-center gap-1">
-                                <Video className="h-3 w-3" />
-                                视频预览
-                              </span>
+                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={togglePlay}
+                                  className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+                                >
+                                  {isPlaying ? (
+                                    <Pause className="h-5 w-5 text-white" />
+                                  ) : (
+                                    <Play className="h-5 w-5 text-white ml-0.5" />
+                                  )}
+                                </button>
+                                <span className="text-xs text-white/80 flex items-center gap-1">
+                                  <Video className="h-3 w-3" />
+                                  {isPlaying ? '播放中' : '已暂停'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={toggleMute}
+                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+                                >
+                                  {isMuted ? (
+                                    <VolumeX className="h-4 w-4 text-white" />
+                                  ) : (
+                                    <Volume2 className="h-4 w-4 text-white" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={toggleFullscreen}
+                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+                                >
+                                  <Maximize2 className="h-4 w-4 text-white" />
+                                </button>
+                              </div>
                             </div>
-                            <button
-                              onClick={toggleMute}
-                              className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-                            >
-                              {isMuted ? (
-                                <VolumeX className="h-4 w-4 text-white" />
-                              ) : (
-                                <Volume2 className="h-4 w-4 text-white" />
-                              )}
-                            </button>
                           </div>
+                          {/* Click to play overlay when paused */}
+                          {!isPlaying && (
+                            <div 
+                              className="absolute inset-0 flex items-center justify-center cursor-pointer"
+                              onClick={togglePlay}
+                            >
+                              <div className="h-16 w-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors">
+                                <Play className="h-8 w-8 text-white ml-1" />
+                              </div>
+                            </div>
+                          )}
                         </>
                       ) : prompt.sourceVideoData ? (
                         // 只有缩略图，显示缩略图和提示
@@ -386,6 +435,7 @@ export function PromptDetailDialog({
                             <div className="text-center">
                               <Video className="h-12 w-12 text-white/60 mx-auto mb-2" />
                               <p className="text-sm text-white/80">视频预览（仅缩略图）</p>
+                              <p className="text-xs text-white/60 mt-1">原视频文件过大未保存</p>
                             </div>
                           </div>
                         </div>
@@ -396,13 +446,21 @@ export function PromptDetailDialog({
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <img
-                      src={prompt.sourceFileData}
-                      alt={prompt.title}
-                      className="w-full max-h-[400px] object-contain"
-                    />
-                  )}
+                  ) : prompt.sourceType === 'IMAGE' ? (
+                    <div className="relative bg-muted">
+                      <img
+                        src={getImageSource()!}
+                        alt={prompt.title}
+                        className="w-full max-h-[500px] object-contain"
+                      />
+                      <div className="absolute bottom-2 right-2">
+                        <span className="px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" />
+                          原图预览
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
                 </motion.div>
               ) : (
                 <motion.div
