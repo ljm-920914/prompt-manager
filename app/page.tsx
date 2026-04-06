@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { 
   Search, 
@@ -23,7 +22,10 @@ import {
   Loader2,
   Wand2,
   ExternalLink,
-  Eye
+  Eye,
+  X,
+  ChevronRight,
+  Filter
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -36,6 +38,30 @@ import { promptApi, categoryApi, backupApi, aiExtract, type Prompt, type Categor
 import { ThemeToggle } from "@/components/theme-toggle"
 import { GitHubIcon } from "@/components/github-icon"
 import { PromptDetailDialog } from "@/components/prompt-detail-dialog"
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05
+    }
+  }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 30
+    }
+  }
+}
 
 export default function Home() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
@@ -100,12 +126,10 @@ export default function Home() {
       }
     }
 
-    // Process files
     for (const file of files) {
       await processFile(file)
     }
 
-    // Process URLs
     for (const url of urls) {
       await processUrl(url)
     }
@@ -116,13 +140,12 @@ export default function Home() {
     
     try {
       if (file.type.startsWith('image/')) {
-        // Process image
         const reader = new FileReader()
         reader.onload = async (e) => {
           const base64 = e.target?.result as string
           const result = await aiExtract.fromImage(file.name, base64)
           
-          const newPrompt = promptApi.create({
+          promptApi.create({
             title: result.title,
             content: result.content,
             sourceType: 'IMAGE',
@@ -137,10 +160,9 @@ export default function Home() {
         }
         reader.readAsDataURL(file)
       } else if (file.type.startsWith('video/')) {
-        // Process video
         const result = await aiExtract.fromVideo(file.name)
         
-        const newPrompt = promptApi.create({
+        promptApi.create({
           title: result.title,
           content: result.content,
           sourceType: 'VIDEO',
@@ -152,11 +174,10 @@ export default function Home() {
         toast.success(`已提取视频: ${file.name}`)
         loadData()
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-        // Process text file
         const text = await file.text()
         const result = await aiExtract.fromText(text)
         
-        const newPrompt = promptApi.create({
+        promptApi.create({
           title: result.title,
           content: result.content,
           sourceType: 'TEXT',
@@ -183,7 +204,7 @@ export default function Home() {
     try {
       const result = await aiExtract.fromLink(url)
       
-      const newPrompt = promptApi.create({
+      promptApi.create({
         title: result.title,
         content: result.content,
         sourceType: 'LINK',
@@ -231,7 +252,6 @@ export default function Home() {
   const handleUpdatePrompt = (id: string, updates: Partial<Prompt>) => {
     promptApi.update(id, updates)
     loadData()
-    // Update selected prompt if it's currently open
     if (selectedPrompt && selectedPrompt.id === id) {
       setSelectedPrompt({ ...selectedPrompt, ...updates })
     }
@@ -288,30 +308,32 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-10">
+      <header className="border-b bg-card/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20">
                 <Wand2 className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold">Prompt Manager</h1>
-              <Badge variant="outline" className="ml-2 text-xs">v2.3</Badge>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">Prompt Manager</h1>
+                <p className="text-xs text-muted-foreground">AI 提示词管理工具</p>
+              </div>
             </div>
             
             <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <Input
                   placeholder="搜索提示词..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-10 bg-muted/50 border-0 focus:bg-background transition-all"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <input
                 type="file"
                 accept=".json"
@@ -319,18 +341,15 @@ export default function Home() {
                 className="hidden"
                 id="import-file"
               />
-              <Button variant="outline" size="sm" onClick={() => document.getElementById('import-file')?.click()}>
-                <Upload className="h-4 w-4 mr-1" />
+              <Button variant="ghost" size="sm" onClick={() => document.getElementById('import-file')?.click()}>
+                <Upload className="h-4 w-4 mr-2" />
                 导入
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExport}>
-                <Download className="h-4 w-4 mr-1" />
+              <Button variant="ghost" size="sm" onClick={handleExport}>
+                <Download className="h-4 w-4 mr-2" />
                 导出
               </Button>
-              
-              {/* 日夜模式切换按钮 */}
               <ThemeToggle />
-              
               <a 
                 href="https://github.com/ljm-920914/prompt-manager" 
                 target="_blank" 
@@ -345,21 +364,23 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Drop Zone */}
-      <div className="container mx-auto px-4 py-6">
-        <div
+      {/* Hero Drop Zone */}
+      <div className="container mx-auto px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className={`
-            relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
-            transition-all duration-200
+            relative rounded-2xl p-12 text-center cursor-pointer overflow-hidden
+            transition-all duration-300
             ${isDragging 
-              ? 'border-primary bg-primary/5 scale-[1.02]' 
-              : 'border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/50'
+              ? 'bg-primary/10 border-2 border-primary scale-[1.02]' 
+              : 'bg-gradient-to-br from-muted/50 to-muted/30 border-2 border-dashed border-muted-foreground/20 hover:border-muted-foreground/40'
             }
-            ${isProcessing ? 'pointer-events-none opacity-70' : ''}
           `}
         >
           <input
@@ -371,287 +392,270 @@ export default function Home() {
             className="hidden"
           />
           
+          {/* Background decoration */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 pointer-events-none" />
+          
           {isProcessing ? (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="relative flex flex-col items-center gap-4">
+              <div className="relative">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <div className="absolute inset-0 blur-xl bg-primary/30 rounded-full" />
+              </div>
               <div>
-                <p className="font-medium">AI 正在分析...</p>
-                <p className="text-sm text-muted-foreground">自动识别素材类型并提取提示词</p>
+                <p className="text-lg font-medium">AI 正在分析素材...</p>
+                <p className="text-sm text-muted-foreground">自动识别类型并提取提示词</p>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Image className="h-5 w-5 text-primary" />
-                </div>
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Video className="h-5 w-5 text-primary" />
-                </div>
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Link className="h-5 w-5 text-primary" />
-                </div>
+            <div className="relative flex flex-col items-center gap-4">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  whileHover={{ scale: 1.1 }}
+                  className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center"
+                >
+                  <Image className="h-7 w-7 text-primary" />
+                </motion.div>
+                <motion.div 
+                  whileHover={{ scale: 1.1 }}
+                  className="h-14 w-14 rounded-2xl bg-secondary/10 flex items-center justify-center"
+                >
+                  <Video className="h-7 w-7 text-secondary" />
+                </motion.div>
+                <motion.div 
+                  whileHover={{ scale: 1.1 }}
+                  className="h-14 w-14 rounded-2xl bg-accent/10 flex items-center justify-center"
+                >
+                  <Link className="h-7 w-7 text-accent" />
+                </motion.div>
               </div>
               <div>
-                <p className="font-medium text-lg">
+                <p className="text-2xl font-semibold">
                   {isDragging ? '松开即可导入' : '拖拽素材到这里'}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-muted-foreground mt-2">
                   支持图片、视频、链接、文本文件 · 自动识别提取提示词
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="px-2 py-1 bg-muted rounded">JPG</span>
-                <span className="px-2 py-1 bg-muted rounded">PNG</span>
-                <span className="px-2 py-1 bg-muted rounded">MP4</span>
-                <span className="px-2 py-1 bg-muted rounded">Web链接</span>
-                <span className="px-2 py-1 bg-muted rounded">TXT</span>
+                <Badge variant="secondary" className="font-normal">JPG</Badge>
+                <Badge variant="secondary" className="font-normal">PNG</Badge>
+                <Badge variant="secondary" className="font-normal">MP4</Badge>
+                <Badge variant="secondary" className="font-normal">Web链接</Badge>
+                <Badge variant="secondary" className="font-normal">TXT</Badge>
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 pb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="container mx-auto px-4 pb-12">
+        <div className="flex gap-6">
           {/* Sidebar - Categories */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Folder className="h-4 w-4" />
-                  分类
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <ScrollArea className="h-[calc(100vh-400px)]">
-                  <div className="space-y-1">
-                    <button
-                      onClick={() => setSelectedCategory(null)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors ${
-                        selectedCategory === null 
-                          ? "bg-primary text-primary-foreground" 
-                          : "hover:bg-muted"
-                      }`}
-                    >
-                      <span>全部</span>
-                      <Badge variant={selectedCategory === null ? "secondary" : "outline"}>
-                        {prompts.length}
-                      </Badge>
-                    </button>
-                    
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors ${
-                          selectedCategory === category.id 
-                            ? "bg-primary text-primary-foreground" 
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-2 h-2 rounded-full" 
-                            style={{ backgroundColor: category.color }}
-                          />
-                          <span>{category.name}</span>
-                        </div>
-                        <Badge variant={selectedCategory === category.id ? "secondary" : "outline"}>
-                          {prompts.filter(p => p.categoryId === category.id).length}
-                        </Badge>
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
+          <aside className="w-64 shrink-0">
+            <div className="sticky top-24 space-y-4">
+              <div className="flex items-center gap-2 px-2 mb-3">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">筛选</span>
+              </div>
+              
+              <div className="space-y-1">
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`
+                    w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all
+                    ${selectedCategory === null 
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25" 
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    }
+                  `}
+                >
+                  <span className="flex items-center gap-3">
+                    <Folder className="h-4 w-4" />
+                    全部提示词
+                  </span>
+                  <Badge variant={selectedCategory === null ? "secondary" : "outline"} className="text-xs">
+                    {prompts.length}
+                  </Badge>
+                </button>
+                
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`
+                      w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all
+                      ${selectedCategory === category.id 
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25" 
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      }
+                    `}
+                  >
+                    <span className="flex items-center gap-3">
+                      <div 
+                        className="w-2.5 h-2.5 rounded-full" 
+                        style={{ backgroundColor: selectedCategory === category.id ? 'currentColor' : category.color }}
+                      />
+                      {category.name}
+                    </span>
+                    <Badge variant={selectedCategory === category.id ? "secondary" : "outline"} className="text-xs">
+                      {prompts.filter(p => p.categoryId === category.id).length}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
 
           {/* Prompts Grid */}
-          <div className="lg:col-span-3">
-            <Tabs defaultValue="grid" className="w-full">
-              <div className="flex items-center justify-between mb-4">
-                <TabsList>
-                  <TabsTrigger value="grid">网格</TabsTrigger>
-                  <TabsTrigger value="list">列表</TabsTrigger>
-                </TabsList>
-                <span className="text-sm text-muted-foreground">
-                  共 {prompts.length} 个提示词
+          <main className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold">
+                {selectedCategory 
+                  ? categories.find(c => c.id === selectedCategory)?.name 
+                  : '全部提示词'
+                }
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  ({prompts.length})
                 </span>
-              </div>
+              </h2>
+            </div>
 
-              <TabsContent value="grid" className="mt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AnimatePresence mode="popLayout">
+              {prompts.length === 0 && !isLoading ? (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center justify-center py-20 text-center"
+                >
+                  <div className="h-20 w-20 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                    <Sparkles className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">暂无提示词</h3>
+                  <p className="text-muted-foreground max-w-sm">
+                    拖拽图片、视频或链接到上方区域，自动提取提示词
+                  </p>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4"
+                >
                   {prompts.map((prompt) => {
                     const category = getCategoryById(prompt.categoryId)
                     return (
-                      <Card 
-                        key={prompt.id} 
-                        className="group overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => handleOpenDetail(prompt)}
+                      <motion.div
+                        key={prompt.id}
+                        variants={itemVariants}
+                        layout
+                        whileHover={{ y: -4 }}
+                        className="group"
                       >
-                        {prompt.sourceFileData && prompt.sourceType === 'IMAGE' && (
-                          <div className="h-32 bg-muted overflow-hidden">
-                            <img 
-                              src={prompt.sourceFileData} 
-                              alt={prompt.title}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        )}
-                        
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              {getSourceIcon(prompt.sourceType)}
-                              <CardTitle className="text-base font-medium line-clamp-1">
-                                {prompt.title}
-                              </CardTitle>
-                            </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id); }}>
-                                  <Copy className="h-4 w-4 mr-2" />
-                                  复制
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeletePrompt(prompt.id); }} className="text-destructive">
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  删除
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 mt-2">
-                            {category && (
-                              <Badge 
-                                style={{ backgroundColor: category.color + "20", color: category.color, borderColor: category.color }}
-                                variant="outline"
-                                className="text-xs"
-                              >
-                                {category.name}
-                              </Badge>
-                            )}
-                            {prompt.sourceType === 'LINK' && prompt.sourceUrl && (
-                              <Badge variant="secondary" className="text-xs">
-                                <ExternalLink className="h-3 w-3 mr-1" />
-                                链接
-                              </Badge>
-                            )}
-                          </div>
-                        </CardHeader>
-                        
-                        <CardContent className="pt-0">
-                          <p className="text-sm text-muted-foreground line-clamp-3 mb-3 font-mono text-xs bg-muted p-2 rounded">
-                            {prompt.content}
-                          </p>
-                          
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Eye className="h-3 w-3" />
-                                {prompt.viewCount}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Copy className="h-3 w-3" />
-                                {prompt.useCount}
-                              </span>
-                            </div>
-                            
-                            <div className="flex gap-1">
-                              {prompt.tags.slice(0, 2).map((tag, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {prompt.tags.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{prompt.tags.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="list" className="mt-0">
-                <Card>
-                  <div className="divide-y">
-                    {prompts.map((prompt) => {
-                      const category = getCategoryById(prompt.categoryId)
-                      return (
                         <div 
-                          key={prompt.id} 
-                          className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors cursor-pointer"
+                          className="relative bg-card rounded-2xl border overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20"
                           onClick={() => handleOpenDetail(prompt)}
                         >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              {getSourceIcon(prompt.sourceType)}
-                              <span className="font-medium truncate">{prompt.title}</span>
+                          {/* Image Preview */}
+                          {prompt.sourceFileData && prompt.sourceType === 'IMAGE' && (
+                            <div className="relative aspect-video overflow-hidden bg-muted">
+                              <img 
+                                src={prompt.sourceFileData} 
+                                alt={prompt.title}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          )}
+                          
+                          {/* Content */}
+                          <div className="p-5">
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="p-1.5 rounded-lg bg-muted">
+                                  {getSourceIcon(prompt.sourceType)}
+                                </div>
+                                <h3 className="font-semibold truncate">{prompt.title}</h3>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id); }}>
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    复制
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeletePrompt(prompt.id); }} className="text-destructive">
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    删除
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            
+                            {/* Category & Tags */}
+                            <div className="flex items-center gap-2 mb-3 flex-wrap">
                               {category && (
                                 <Badge 
-                                  style={{ backgroundColor: category.color + "20", color: category.color }}
+                                  style={{ 
+                                    backgroundColor: category.color + "15", 
+                                    color: category.color,
+                                    borderColor: category.color + "30"
+                                  }}
                                   variant="outline"
-                                  className="text-xs shrink-0"
+                                  className="text-xs font-medium"
                                 >
                                   {category.name}
                                 </Badge>
                               )}
+                              {prompt.tags.slice(0, 2).map((tag, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs font-normal">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {prompt.tags.length > 2 && (
+                                <Badge variant="secondary" className="text-xs font-normal">
+                                  +{prompt.tags.length - 2}
+                                </Badge>
+                              )}
                             </div>
-                            <p className="text-sm text-muted-foreground truncate font-mono text-xs">
-                              {prompt.content.substring(0, 100)}...
+                            
+                            {/* Preview */}
+                            <p className="text-sm text-muted-foreground line-clamp-3 font-mono bg-muted/50 p-3 rounded-lg">
+                              {prompt.content}
                             </p>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleCopyPrompt(prompt.content, prompt.id)}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleDeletePrompt(prompt.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            
+                            {/* Footer */}
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Eye className="h-3.5 w-3.5" />
+                                  {prompt.viewCount}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Copy className="h-3.5 w-3.5" />
+                                  {prompt.useCount}
+                                </span>
+                              </div>
+                              <Button variant="ghost" size="sm" className="h-8 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                                查看详情
+                                <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                </Card>
-              </TabsContent>
-            </Tabs>
-
-            {prompts.length === 0 && !isLoading && (
-              <div className="text-center py-12">
-                <div className="h-12 w-12 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                  <Sparkles className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">暂无提示词</h3>
-                <p className="text-muted-foreground mb-4">
-                  拖拽图片、视频或链接到上方区域，自动提取提示词
-                </p>
-              </div>
-            )}
-          </div>
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </main>
         </div>
       </div>
       
