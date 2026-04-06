@@ -9,8 +9,8 @@ export interface Prompt {
   sourceType: 'TEXT' | 'LINK' | 'IMAGE' | 'VIDEO'
   sourceUrl?: string
   sourceFileName?: string
-  sourceFileData?: string // base64 for images and videos
-  sourceVideoData?: string // base64 for video thumbnail (first frame)
+  sourceFileData?: string // base64 for images and videos (limited size)
+  sourceVideoData?: string // base64 for video thumbnail (small size)
   categoryId?: string
   tags: string[]
   isPublic: boolean
@@ -57,10 +57,25 @@ function getData(): StorageData {
   return { ...defaultData, ...JSON.parse(data) }
 }
 
-// 保存数据
-function saveData(data: StorageData) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+// 保存数据（带错误处理）
+function saveData(data: StorageData): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const json = JSON.stringify(data)
+    // 检查数据大小（localStorage 通常限制 5-10MB）
+    const sizeInMB = new Blob([json]).size / 1024 / 1024
+    if (sizeInMB > 4.5) {
+      console.warn(`数据大小 ${sizeInMB.toFixed(2)}MB 接近存储限制`)
+      return false
+    }
+    localStorage.setItem(STORAGE_KEY, json)
+    return true
+  } catch (e) {
+    if (e instanceof Error && e.name === 'QuotaExceededError') {
+      console.error('存储空间不足，请删除一些提示词')
+    }
+    return false
+  }
 }
 
 // 生成ID
@@ -109,7 +124,7 @@ export const promptApi = {
     return data.prompts.find(p => p.shareToken === token && p.isPublic)
   },
 
-  create: (prompt: Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'viewCount' | 'useCount' | 'shareToken'>): Prompt => {
+  create: (prompt: Omit<Prompt, 'id' | 'createdAt' | 'updatedAt' | 'viewCount' | 'useCount' | 'shareToken'>): Prompt | null => {
     const data = getData()
     const newPrompt: Prompt = {
       ...prompt,
@@ -121,7 +136,10 @@ export const promptApi = {
       updatedAt: new Date().toISOString(),
     }
     data.prompts.push(newPrompt)
-    saveData(data)
+    
+    if (!saveData(data)) {
+      return null
+    }
     return newPrompt
   },
 
@@ -147,7 +165,10 @@ export const promptApi = {
       shareToken,
       updatedAt: new Date().toISOString(),
     }
-    saveData(data)
+    
+    if (!saveData(data)) {
+      return undefined
+    }
     return data.prompts[index]
   },
 
@@ -156,8 +177,7 @@ export const promptApi = {
     const index = data.prompts.findIndex(p => p.id === id)
     if (index === -1) return false
     data.prompts.splice(index, 1)
-    saveData(data)
-    return true
+    return saveData(data)
   },
 
   incrementView: (id: string) => {
@@ -191,14 +211,16 @@ export const categoryApi = {
     return data.categories.find(c => c.id === id)
   },
 
-  create: (category: Omit<Category, 'id'>): Category => {
+  create: (category: Omit<Category, 'id'>): Category | null => {
     const data = getData()
     const newCategory: Category = {
       ...category,
       id: generateId(),
     }
     data.categories.push(newCategory)
-    saveData(data)
+    if (!saveData(data)) {
+      return null
+    }
     return newCategory
   },
 
@@ -207,7 +229,9 @@ export const categoryApi = {
     const index = data.categories.findIndex(c => c.id === id)
     if (index === -1) return undefined
     data.categories[index] = { ...data.categories[index], ...updates }
-    saveData(data)
+    if (!saveData(data)) {
+      return undefined
+    }
     return data.categories[index]
   },
 
@@ -221,8 +245,7 @@ export const categoryApi = {
         p.categoryId = undefined
       }
     })
-    saveData(data)
-    return true
+    return saveData(data)
   },
 }
 
@@ -237,8 +260,7 @@ export const backupApi = {
     try {
       const data = JSON.parse(json)
       if (data.prompts && data.categories) {
-        saveData(data)
-        return true
+        return saveData(data)
       }
       return false
     } catch {
@@ -253,7 +275,7 @@ export const backupApi = {
   }
 }
 
-// 生成视频缩略图 - 修复版：视频必须添加到DOM才能正确加载
+// 生成视频缩略图 - 生成小尺寸缩略图以节省空间
 async function generateVideoThumbnail(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -265,7 +287,7 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       return
     }
 
-    // 将视频添加到DOM（隐藏）- 某些浏览器需要这样才能正确加载
+    // 将视频添加到DOM（隐藏）
     video.style.position = 'fixed'
     video.style.opacity = '0'
     video.style.pointerEvents = 'none'
@@ -276,7 +298,6 @@ async function generateVideoThumbnail(file: File): Promise<string> {
     const objectUrl = URL.createObjectURL(file)
     let isResolved = false
     
-    // 清理函数
     const cleanup = () => {
       URL.revokeObjectURL(objectUrl)
       video.pause()
@@ -287,7 +308,6 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       }
     }
     
-    // 设置超时
     const timeout = setTimeout(() => {
       if (!isResolved) {
         isResolved = true
@@ -296,30 +316,24 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       }
     }, 30000)
     
-    // 成功处理函数
     const handleSuccess = () => {
       if (isResolved) return
       
       try {
-        // 确保视频有有效的尺寸
-        if (!video.videoWidth || !video.videoHeight) {
-          canvas.width = 640
-          canvas.height = 360
-        } else {
-          // 限制最大宽度为 640px
-          const maxWidth = 640
-          const scale = Math.min(1, maxWidth / video.videoWidth)
-          canvas.width = video.videoWidth * scale
-          canvas.height = video.videoHeight * scale
-        }
+        // 限制缩略图尺寸为 320px 宽度（减小存储占用）
+        const maxWidth = 320
+        let width = video.videoWidth || 640
+        let height = video.videoHeight || 360
+        const scale = Math.min(1, maxWidth / width)
+        canvas.width = width * scale
+        canvas.height = height * scale
         
-        // 绘制视频帧
         ctx.fillStyle = '#000'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
         
-        // 转换为 base64
-        const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
+        // 使用更低的压缩质量（0.6）以减小文件大小
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.6)
         
         isResolved = true
         clearTimeout(timeout)
@@ -335,7 +349,6 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       }
     }
     
-    // 错误处理
     const handleError = (e: Event) => {
       console.error('Video error:', e, video.error)
       if (!isResolved) {
@@ -347,29 +360,27 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       }
     }
     
-    // 事件监听 - 使用多个事件确保捕获
     video.addEventListener('loadeddata', handleSuccess, { once: true })
     video.addEventListener('canplay', handleSuccess, { once: true })
     video.addEventListener('error', handleError, { once: true })
     video.addEventListener('abort', handleError, { once: true })
     
-    // 设置视频属性
     video.muted = true
     video.playsInline = true
     video.preload = 'auto'
     
-    // 加载视频
     video.src = objectUrl
     video.load()
   })
 }
 
-// 将视频文件转为 base64（限制大小为 50MB）
+// 将视频文件转为 base64 - 限制为 5MB 以内的小视频
 async function videoToBase64(file: File): Promise<string | undefined> {
-  const MAX_SIZE = 50 * 1024 * 1024
+  // 限制视频大小为 5MB（减小以避免存储问题）
+  const MAX_SIZE = 5 * 1024 * 1024
   
   if (file.size > MAX_SIZE) {
-    console.warn(`视频文件过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，仅保存缩略图`)
+    console.warn(`视频文件过大 (${(file.size / 1024 / 1024).toFixed(1)}MB > 5MB)，仅保存缩略图`)
     return undefined
   }
   
@@ -414,7 +425,7 @@ negative prompt:
       // 先生成缩略图
       const thumbnail = await generateVideoThumbnail(file)
       
-      // 再获取视频数据（如果文件不大）
+      // 再获取视频数据（仅小文件）
       let videoData: string | undefined
       try {
         videoData = await videoToBase64(file)
