@@ -10,6 +10,7 @@ export interface Prompt {
   sourceUrl?: string
   sourceFileName?: string
   sourceFileData?: string // base64 for images
+  sourceVideoData?: string // base64 for video thumbnail
   categoryId?: string
   tags: string[]
   isPublic: boolean
@@ -252,6 +253,55 @@ export const backupApi = {
   }
 }
 
+// 生成视频缩略图
+async function generateVideoThumbnail(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    
+    if (!ctx) {
+      reject(new Error('无法创建 canvas context'))
+      return
+    }
+
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
+    
+    video.onloadedmetadata = () => {
+      // 在视频的 1/4 处截取缩略图
+      video.currentTime = Math.min(video.duration * 0.25, 5)
+    }
+    
+    video.onseeked = () => {
+      // 设置 canvas 尺寸为视频尺寸（限制最大宽度）
+      const maxWidth = 640
+      const scale = Math.min(1, maxWidth / video.videoWidth)
+      canvas.width = video.videoWidth * scale
+      canvas.height = video.videoHeight * scale
+      
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      
+      try {
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
+        resolve(thumbnail)
+      } catch (err) {
+        reject(err)
+      }
+      
+      // 清理
+      URL.revokeObjectURL(video.src)
+    }
+    
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src)
+      reject(new Error('视频加载失败'))
+    }
+    
+    video.src = URL.createObjectURL(file)
+  })
+}
+
 // AI 提取模拟
 export const aiExtract = {
   fromImage: async (fileName: string, base64Data: string): Promise<{ title: string; content: string; tags: string[] }> => {
@@ -278,11 +328,20 @@ negative prompt:
     }
   },
 
-  fromVideo: async (fileName: string): Promise<{ title: string; content: string; tags: string[] }> => {
+  fromVideo: async (file: File): Promise<{ title: string; content: string; tags: string[]; thumbnail?: string }> => {
+    // 先生成缩略图
+    let thumbnail: string | undefined
+    try {
+      thumbnail = await generateVideoThumbnail(file)
+    } catch (err) {
+      console.warn('视频缩略图生成失败:', err)
+    }
+    
+    // 模拟 AI 分析
     await new Promise(resolve => setTimeout(resolve, 2000))
     
     return {
-      title: `从视频提取: ${fileName}`,
+      title: `从视频提取: ${file.name}`,
       content: `// 从视频提取的提示词
 
 视频内容分析:
@@ -293,7 +352,8 @@ negative prompt:
 
 生成提示词:
 Cyberpunk cityscape at night, neon lights reflecting on wet streets, towering skyscrapers with holographic advertisements, flying vehicles, dystopian atmosphere, highly detailed, cinematic lighting, 8k quality`,
-      tags: ['视频分析', '赛博朋克', '场景描述']
+      tags: ['视频分析', '赛博朋克', '场景描述'],
+      thumbnail
     }
   },
 

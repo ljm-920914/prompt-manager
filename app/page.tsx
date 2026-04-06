@@ -27,7 +27,8 @@ import {
   Plus,
   LayoutGrid,
   List,
-  X
+  X,
+  Play
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -110,18 +111,28 @@ export default function Home() {
           const base64 = e.target?.result as string
           const result = await aiExtract.fromImage(file.name, base64)
           promptApi.create({
-            title: result.title, content: result.content, sourceType: 'IMAGE',
-            sourceFileName: file.name, sourceFileData: base64, tags: result.tags, isPublic: false,
+            title: result.title, 
+            content: result.content, 
+            sourceType: 'IMAGE',
+            sourceFileName: file.name, 
+            sourceFileData: base64, 
+            tags: result.tags, 
+            isPublic: false,
           })
           toast.success(`已提取图片: ${file.name}`)
           loadData()
         }
         reader.readAsDataURL(file)
       } else if (file.type.startsWith('video/')) {
-        const result = await aiExtract.fromVideo(file.name)
+        const result = await aiExtract.fromVideo(file)
         promptApi.create({
-          title: result.title, content: result.content, sourceType: 'VIDEO',
-          sourceFileName: file.name, tags: result.tags, isPublic: false,
+          title: result.title, 
+          content: result.content, 
+          sourceType: 'VIDEO',
+          sourceFileName: file.name, 
+          sourceVideoData: result.thumbnail,
+          tags: result.tags, 
+          isPublic: false,
         })
         toast.success(`已提取视频: ${file.name}`)
         loadData()
@@ -129,8 +140,12 @@ export default function Home() {
         const text = await file.text()
         const result = await aiExtract.fromText(text)
         promptApi.create({
-          title: result.title, content: result.content, sourceType: 'TEXT',
-          sourceFileName: file.name, tags: result.tags, isPublic: false,
+          title: result.title, 
+          content: result.content, 
+          sourceType: 'TEXT',
+          sourceFileName: file.name, 
+          tags: result.tags, 
+          isPublic: false,
         })
         toast.success(`已导入文本: ${file.name}`)
         loadData()
@@ -149,8 +164,12 @@ export default function Home() {
     try {
       const result = await aiExtract.fromLink(url)
       promptApi.create({
-        title: result.title, content: result.content, sourceType: 'LINK',
-        sourceUrl: url, tags: result.tags, isPublic: false,
+        title: result.title, 
+        content: result.content, 
+        sourceType: 'LINK',
+        sourceUrl: url, 
+        tags: result.tags, 
+        isPublic: false,
       })
       toast.success(`已提取链接`)
       loadData()
@@ -238,6 +257,17 @@ export default function Home() {
   const clearSearch = () => {
     setSearchQuery("")
     setSelectedCategory(null)
+  }
+
+  // 获取预览图（图片或视频缩略图）
+  const getPreviewData = (prompt: Prompt) => {
+    if (prompt.sourceType === 'IMAGE' && prompt.sourceFileData) {
+      return { type: 'image' as const, data: prompt.sourceFileData }
+    }
+    if (prompt.sourceType === 'VIDEO' && prompt.sourceVideoData) {
+      return { type: 'video' as const, data: prompt.sourceVideoData }
+    }
+    return null
   }
 
   return (
@@ -487,6 +517,7 @@ export default function Home() {
                 >
                   {prompts.map((prompt) => {
                     const category = getCategoryById(prompt.categoryId)
+                    const preview = getPreviewData(prompt)
                     return (
                       <motion.div 
                         key={prompt.id} 
@@ -499,21 +530,42 @@ export default function Home() {
                             ${viewMode === 'list' ? 'flex items-center gap-4 p-4' : ''}
                           `}
                         >
-                          {/* Image thumbnail for grid view */}
-                          {viewMode === 'grid' && prompt.sourceFileData && prompt.sourceType === 'IMAGE' && (
+                          {/* Preview for grid view */}
+                          {viewMode === 'grid' && preview && (
                             <div className="relative aspect-[16/10] overflow-hidden bg-[#0c0c12]">
-                              <img src={prompt.sourceFileData} alt={prompt.title}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              {preview.type === 'image' ? (
+                                <img src={preview.data} alt={prompt.title}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              ) : (
+                                <>
+                                  <img src={preview.data} alt={prompt.title}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="h-12 w-12 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                                      <Play className="h-5 w-5 text-white ml-0.5" />
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                               <div className="absolute inset-0 bg-gradient-to-t from-[#15151c] via-transparent to-transparent" />
+                              {/* Source type badge */}
+                              <div className="absolute top-2 left-2">
+                                <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
+                                  {preview.type === 'video' ? <Video className="h-3 w-3" /> : <Image className="h-3 w-3" />}
+                                  {preview.type === 'video' ? '视频' : '图片'}
+                                </span>
+                              </div>
                             </div>
                           )}
                           
                           <div className={`${viewMode === 'grid' ? 'p-4' : 'flex-1 min-w-0'}`}>
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex items-center gap-2 min-w-0">
-                                <div className="p-1.5 rounded-lg bg-[#1e1e28] text-[#6b6b7b]">
-                                  {getSourceIcon(prompt.sourceType)}
-                                </div>
+                                {viewMode === 'list' && (
+                                  <div className="p-1.5 rounded-lg bg-[#1e1e28] text-[#6b6b7b]">
+                                    {getSourceIcon(prompt.sourceType)}
+                                  </div>
+                                )}
                                 <h3 className="font-medium text-white truncate">{prompt.title}</h3>
                               </div>
                               <DropdownMenu>
@@ -542,7 +594,8 @@ export default function Home() {
                                   style={{
                                     backgroundColor: `${category.color}15`,
                                     color: category.color,
-                                  }}>
+                                  }}
+                                >
                                   {category.name}
                                 </span>
                               </div>
@@ -550,13 +603,15 @@ export default function Home() {
                             
                             <p className={`text-sm text-[#6b6b7b] font-mono bg-[#0c0c12] rounded-lg border border-[#272730]
                               ${viewMode === 'grid' ? 'p-3 line-clamp-3' : 'p-2 line-clamp-1 flex-1'}
-                            `}>
+                            `}
+                            >
                               {prompt.content}
                             </p>
                             
                             <div className={`flex items-center justify-between mt-3 pt-3 border-t border-[#272730]
                               ${viewMode === 'list' ? 'border-0 pt-0 mt-2' : ''}
-                            `}>
+                            `}
+                            >
                               <div className="flex items-center gap-4 text-xs text-[#6b6b7b]">
                                 <span className="flex items-center gap-1">
                                   <Eye className="h-3.5 w-3.5" />{prompt.viewCount}
@@ -570,7 +625,8 @@ export default function Home() {
                                   style={{
                                     backgroundColor: `${category.color}15`,
                                     color: category.color,
-                                  }}>
+                                  }}
+                                >
                                   {category.name}
                                 </span>
                               )}

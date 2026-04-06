@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Trash2, Image as ImageIcon, Link, FileText, Video } from "lucide-react"
+import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Trash2, Image as ImageIcon, Link, FileText, Video, Play } from "lucide-react"
 import { toast } from "sonner"
 import type { Prompt, Category } from "@/lib/storage"
 
@@ -120,11 +120,15 @@ export function PromptDetailDialog({
     })
   }
 
+  // 判断是否有预览内容
+  const hasPreview = prompt.sourceType === 'IMAGE' && prompt.sourceFileData || 
+                     prompt.sourceType === 'VIDEO' && prompt.sourceVideoData
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 gap-0 bg-[#15151c] border-[#272730]">
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-[#272730]">
+        <div className="flex items-start justify-between p-6 pb-4 border-b border-[#272730]">
           <div className="flex-1 min-w-0 pr-4">
             {/* Title */}
             <AnimatePresence mode="wait">
@@ -250,8 +254,8 @@ export function PromptDetailDialog({
               </Select>
             </div>
 
-            {/* Content tabs */}
-            {prompt.sourceFileData && prompt.sourceType === "IMAGE" && (
+            {/* Content tabs - only show if has preview */}
+            {hasPreview && (
               <div className="flex gap-2 border-b border-[#272730]">
                 <button
                   onClick={() => setActiveTab("content")}
@@ -271,14 +275,14 @@ export function PromptDetailDialog({
                       : "text-[#6b6b7b] border-transparent hover:text-white"
                   }`}
                 >
-                  原图预览
+                  素材预览
                 </button>
               </div>
             )}
 
             {/* Content area */}
             <AnimatePresence mode="wait">
-              {activeTab === "preview" && prompt.sourceFileData ? (
+              {activeTab === "preview" && hasPreview ? (
                 <motion.div
                   key="preview"
                   initial={{ opacity: 0, y: 10 }}
@@ -286,11 +290,32 @@ export function PromptDetailDialog({
                   exit={{ opacity: 0, y: -10 }}
                   className="rounded-xl overflow-hidden border border-[#272730]"
                 >
-                  <img
-                    src={prompt.sourceFileData}
-                    alt={prompt.title}
-                    className="w-full max-h-[400px] object-contain bg-[#0c0c12]"
-                  />
+                  {prompt.sourceType === 'VIDEO' && prompt.sourceVideoData ? (
+                    <div className="relative">
+                      <img
+                        src={prompt.sourceVideoData}
+                        alt={prompt.title}
+                        className="w-full max-h-[400px] object-contain bg-[#0c0c12]"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="h-16 w-16 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                          <Play className="h-6 w-6 text-white ml-1" />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                        <span className="text-xs text-white/80 flex items-center gap-1">
+                          <Video className="h-3 w-3" />
+                          视频缩略图
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <img
+                      src={prompt.sourceFileData}
+                      alt={prompt.title}
+                      className="w-full max-h-[400px] object-contain bg-[#0c0c12]"
+                    />
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
