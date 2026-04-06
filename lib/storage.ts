@@ -253,7 +253,7 @@ export const backupApi = {
   }
 }
 
-// 生成视频缩略图（第一帧）
+// 生成视频缩略图（第一帧）- 修复版
 async function generateVideoThumbnail(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -266,51 +266,111 @@ async function generateVideoThumbnail(file: File): Promise<string> {
     }
 
     const objectUrl = URL.createObjectURL(file)
-    
-    video.preload = 'metadata'
-    video.muted = true
-    video.playsInline = true
+    let isResolved = false
     
     // 设置超时
     const timeout = setTimeout(() => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('生成缩略图超时'))
-    }, 10000)
+      if (!isResolved) {
+        isResolved = true
+        URL.revokeObjectURL(objectUrl)
+        video.remove()
+        reject(new Error('生成缩略图超时'))
+      }
+    }, 15000)
     
-    video.onloadedmetadata = () => {
-      // 在视频第一帧处截取（或者0.1秒处）
-      video.currentTime = Math.min(0.1, video.duration * 0.01)
-    }
-    
-    video.onseeked = () => {
-      clearTimeout(timeout)
+    // 当视频可以播放时触发（比 onloadedmetadata 更可靠）
+    video.oncanplay = () => {
+      if (isResolved) return
       
       try {
+        // 确保视频有有效的尺寸
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+          // 尝试跳到第一帧
+          video.currentTime = 0.1
+          return
+        }
+        
         // 设置 canvas 尺寸（限制最大宽度为 480px）
         const maxWidth = 480
         const scale = Math.min(1, maxWidth / video.videoWidth)
         canvas.width = video.videoWidth * scale
         canvas.height = video.videoHeight * scale
         
+        // 绘制视频帧
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
         
+        // 转换为 base64
         const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
-        resolve(thumbnail)
-      } catch (err) {
-        reject(err)
-      } finally {
+        
+        isResolved = true
+        clearTimeout(timeout)
         URL.revokeObjectURL(objectUrl)
         video.remove()
+        resolve(thumbnail)
+      } catch (err) {
+        if (!isResolved) {
+          isResolved = true
+          clearTimeout(timeout)
+          URL.revokeObjectURL(objectUrl)
+          video.remove()
+          reject(err)
+        }
+      }
+    }
+    
+    // 备用：使用 onloadeddata
+    video.onloadeddata = () => {
+      if (isResolved) return
+      
+      try {
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+          video.currentTime = 0.1
+          return
+        }
+        
+        const maxWidth = 480
+        const scale = Math.min(1, maxWidth / video.videoWidth)
+        canvas.width = video.videoWidth * scale
+        canvas.height = video.videoHeight * scale
+        
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
+        
+        isResolved = true
+        clearTimeout(timeout)
+        URL.revokeObjectURL(objectUrl)
+        video.remove()
+        resolve(thumbnail)
+      } catch (err) {
+        if (!isResolved) {
+          isResolved = true
+          clearTimeout(timeout)
+          URL.revokeObjectURL(objectUrl)
+          video.remove()
+          reject(err)
+        }
       }
     }
     
     video.onerror = () => {
-      clearTimeout(timeout)
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('视频加载失败'))
+      if (!isResolved) {
+        isResolved = true
+        clearTimeout(timeout)
+        URL.revokeObjectURL(objectUrl)
+        video.remove()
+        reject(new Error('视频加载失败'))
+      }
     }
     
+    // 设置视频属性
+    video.preload = 'auto'
+    video.muted = true
+    video.playsInline = true
+    video.crossOrigin = 'anonymous'
+    
+    // 加载视频
     video.src = objectUrl
+    video.load()
   })
 }
 
@@ -363,14 +423,19 @@ negative prompt:
 
   fromVideo: async (file: File): Promise<{ title: string; content: string; tags: string[]; thumbnail?: string; videoData?: string }> => {
     try {
-      // 同时生成缩略图和获取视频数据
-      const [thumbnail, videoData] = await Promise.all([
-        generateVideoThumbnail(file),
-        videoToBase64(file).catch(() => undefined)
-      ])
+      // 先生成缩略图
+      const thumbnail = await generateVideoThumbnail(file)
+      
+      // 再获取视频数据（如果文件不大）
+      let videoData: string | undefined
+      try {
+        videoData = await videoToBase64(file)
+      } catch (e) {
+        console.warn('视频文件过大，仅保存缩略图')
+      }
       
       // 模拟 AI 分析
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 800))
       
       return {
         title: `从视频提取: ${file.name}`,
@@ -389,16 +454,8 @@ Cyberpunk cityscape at night, neon lights reflecting on wet streets, towering sk
         videoData
       }
     } catch (error) {
-      // 如果生成缩略图失败，仍然返回基本数据
       console.error('视频处理失败:', error)
-      return {
-        title: `从视频提取: ${file.name}`,
-        content: `// 视频处理失败，请手动添加提示词
-
-文件: ${file.name}
-大小: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
-        tags: ['视频', '待处理']
-      }
+      throw error
     }
   },
 

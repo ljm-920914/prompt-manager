@@ -119,20 +119,31 @@ export default function Home() {
         }
         reader.readAsDataURL(file)
       } else if (file.type.startsWith('video/')) {
-        toast.info("正在处理视频，请稍候...")
-        const result = await aiExtract.fromVideo(file)
-        promptApi.create({
-          title: result.title, 
-          content: result.content, 
-          sourceType: 'VIDEO',
-          sourceFileName: file.name, 
-          sourceFileData: result.videoData,
-          sourceVideoData: result.thumbnail,
-          tags: result.tags, 
-          isPublic: false,
-        })
-        toast.success(`已提取视频: ${file.name}`)
-        loadData()
+        const toastId = toast.info("正在处理视频，请稍候...", { duration: 60000 })
+        try {
+          const result = await aiExtract.fromVideo(file)
+          toast.dismiss(toastId)
+          promptApi.create({
+            title: result.title, 
+            content: result.content, 
+            sourceType: 'VIDEO',
+            sourceFileName: file.name, 
+            sourceFileData: result.videoData,
+            sourceVideoData: result.thumbnail,
+            tags: result.tags, 
+            isPublic: false,
+          })
+          if (result.videoData) {
+            toast.success(`已提取视频: ${file.name}`)
+          } else {
+            toast.success(`已提取视频缩略图: ${file.name} (视频过大仅保存缩略图)`)
+          }
+          loadData()
+        } catch (videoError) {
+          toast.dismiss(toastId)
+          console.error('视频处理失败:', videoError)
+          toast.error(`视频处理失败: ${file.name}，请检查视频格式或尝试其他视频`)
+        }
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text()
         const result = await aiExtract.fromText(text)
