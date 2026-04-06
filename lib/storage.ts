@@ -253,7 +253,7 @@ export const backupApi = {
   }
 }
 
-// 生成视频缩略图 - 使用更可靠的方法
+// 生成视频缩略图 - 修复版：视频必须添加到DOM才能正确加载
 async function generateVideoThumbnail(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -265,15 +265,26 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       return
     }
 
+    // 将视频添加到DOM（隐藏）- 某些浏览器需要这样才能正确加载
+    video.style.position = 'fixed'
+    video.style.opacity = '0'
+    video.style.pointerEvents = 'none'
+    video.style.width = '1px'
+    video.style.height = '1px'
+    document.body.appendChild(video)
+
     const objectUrl = URL.createObjectURL(file)
     let isResolved = false
     
     // 清理函数
     const cleanup = () => {
       URL.revokeObjectURL(objectUrl)
+      video.pause()
       video.removeAttribute('src')
       video.load()
-      video.remove()
+      if (video.parentNode) {
+        video.parentNode.removeChild(video)
+      }
     }
     
     // 设置超时
@@ -283,7 +294,7 @@ async function generateVideoThumbnail(file: File): Promise<string> {
         cleanup()
         reject(new Error('生成缩略图超时'))
       }
-    }, 20000)
+    }, 30000)
     
     // 成功处理函数
     const handleSuccess = () => {
@@ -292,7 +303,6 @@ async function generateVideoThumbnail(file: File): Promise<string> {
       try {
         // 确保视频有有效的尺寸
         if (!video.videoWidth || !video.videoHeight) {
-          // 如果尺寸无效，尝试使用默认尺寸
           canvas.width = 640
           canvas.height = 360
         } else {
@@ -327,26 +337,30 @@ async function generateVideoThumbnail(file: File): Promise<string> {
     
     // 错误处理
     const handleError = (e: Event) => {
+      console.error('Video error:', e, video.error)
       if (!isResolved) {
         isResolved = true
         clearTimeout(timeout)
         cleanup()
-        reject(new Error(`视频加载失败: ${e.type}`))
+        const errorMsg = video.error ? `视频错误代码: ${video.error.code}` : '视频加载失败'
+        reject(new Error(errorMsg))
       }
     }
     
-    // 事件监听
+    // 事件监听 - 使用多个事件确保捕获
     video.addEventListener('loadeddata', handleSuccess, { once: true })
+    video.addEventListener('canplay', handleSuccess, { once: true })
     video.addEventListener('error', handleError, { once: true })
     video.addEventListener('abort', handleError, { once: true })
     
     // 设置视频属性
     video.muted = true
     video.playsInline = true
-    video.preload = 'metadata'
+    video.preload = 'auto'
     
     // 加载视频
     video.src = objectUrl
+    video.load()
   })
 }
 
