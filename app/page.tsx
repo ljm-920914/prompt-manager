@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { promptApi, categoryApi, backupApi, aiExtract, type Prompt, type Category } from "@/lib/storage"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function Home() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
@@ -274,7 +275,7 @@ export default function Home() {
                 <Wand2 className="h-5 w-5 text-primary-foreground" />
               </div>
               <h1 className="text-xl font-bold">Prompt Manager</h1>
-              <Badge variant="outline" className="ml-2 text-xs">v2.0</Badge>
+              <Badge variant="outline" className="ml-2 text-xs">v2.1</Badge>
             </div>
             
             <div className="flex-1 max-w-md">
@@ -305,6 +306,10 @@ export default function Home() {
                 <Download className="h-4 w-4 mr-1" />
                 导出
               </Button>
+              
+              {/* 日夜模式切换按钮 */}
+              <ThemeToggle />
+              
               <a 
                 href="https://github.com/ljm-920914/prompt-manager" 
                 target="_blank" 
@@ -471,6 +476,7 @@ export default function Home() {
                             />
                           </div>
                         )}
+                        
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2">
