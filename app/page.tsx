@@ -35,6 +35,7 @@ import { toast } from "sonner"
 import { promptApi, categoryApi, backupApi, aiExtract, type Prompt, type Category } from "@/lib/storage"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { GitHubIcon } from "@/components/github-icon"
+import { PromptDetailDialog } from "@/components/prompt-detail-dialog"
 
 export default function Home() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
@@ -47,6 +48,10 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Detail dialog state
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   const loadData = useCallback(() => {
     const loadedPrompts = promptApi.getAll({ 
@@ -222,6 +227,22 @@ export default function Home() {
     toast.success("已复制到剪贴板")
     loadData()
   }
+  
+  const handleUpdatePrompt = (id: string, updates: Partial<Prompt>) => {
+    promptApi.update(id, updates)
+    loadData()
+    // Update selected prompt if it's currently open
+    if (selectedPrompt && selectedPrompt.id === id) {
+      setSelectedPrompt({ ...selectedPrompt, ...updates })
+    }
+  }
+  
+  const handleOpenDetail = (prompt: Prompt) => {
+    setSelectedPrompt(prompt)
+    promptApi.incrementView(prompt.id)
+    setIsDetailOpen(true)
+    loadData()
+  }
 
   const handleExport = () => {
     const data = backupApi.export()
@@ -275,7 +296,7 @@ export default function Home() {
                 <Wand2 className="h-5 w-5 text-primary-foreground" />
               </div>
               <h1 className="text-xl font-bold">Prompt Manager</h1>
-              <Badge variant="outline" className="ml-2 text-xs">v2.2</Badge>
+              <Badge variant="outline" className="ml-2 text-xs">v2.3</Badge>
             </div>
             
             <div className="flex-1 max-w-md">
@@ -466,7 +487,11 @@ export default function Home() {
                   {prompts.map((prompt) => {
                     const category = getCategoryById(prompt.categoryId)
                     return (
-                      <Card key={prompt.id} className="group overflow-hidden">
+                      <Card 
+                        key={prompt.id} 
+                        className="group overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleOpenDetail(prompt)}
+                      >
                         {prompt.sourceFileData && prompt.sourceType === 'IMAGE' && (
                           <div className="h-32 bg-muted overflow-hidden">
                             <img 
@@ -486,17 +511,17 @@ export default function Home() {
                               </CardTitle>
                             </div>
                             <DropdownMenu>
-                              <DropdownMenuTrigger>
+                              <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleCopyPrompt(prompt.content, prompt.id)}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id); }}>
                                   <Copy className="h-4 w-4 mr-2" />
                                   复制
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDeletePrompt(prompt.id)} className="text-destructive">
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeletePrompt(prompt.id); }} className="text-destructive">
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   删除
                                 </DropdownMenuItem>
@@ -566,7 +591,11 @@ export default function Home() {
                     {prompts.map((prompt) => {
                       const category = getCategoryById(prompt.categoryId)
                       return (
-                        <div key={prompt.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                        <div 
+                          key={prompt.id} 
+                          className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => handleOpenDetail(prompt)}
+                        >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               {getSourceIcon(prompt.sourceType)}
@@ -586,7 +615,7 @@ export default function Home() {
                             </p>
                           </div>
                           
-                          <div className="flex items-center gap-2 ml-4">
+                          <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
                             <Button 
                               variant="ghost" 
                               size="icon"
@@ -625,6 +654,15 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
+      {/* Detail Dialog */}
+      <PromptDetailDialog
+        prompt={selectedPrompt}
+        categories={categories}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        onUpdate={handleUpdatePrompt}
+      />
     </div>
   )
 }
