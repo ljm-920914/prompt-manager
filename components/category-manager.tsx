@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Plus, Trash2, Palette, Check } from "lucide-react"
 import { toast } from "sonner"
 import type { Category } from "@/lib/storage"
@@ -82,46 +81,46 @@ export function CategoryManager({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-[#15151c] border-[#272730] p-0 gap-0">
-        <DialogHeader className="p-6 pb-4 border-b border-[#272730]">
-          <DialogTitle className="text-lg font-semibold text-white">管理分类</DialogTitle>
+      <DialogContent className="max-w-md p-0 gap-0">
+        <DialogHeader className="p-6 pb-4 border-b border-border">
+          <DialogTitle className="text-lg font-semibold text-foreground">管理分类</DialogTitle>
         </DialogHeader>
 
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           {/* Create New Category */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-[#6b6b7b] flex items-center gap-2">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Plus className="h-4 w-4" />
               新建分类
             </h3>
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-sm text-[#6b6b7b]">分类名称</Label>
+                <Label className="text-sm text-muted-foreground">分类名称</Label>
                 <Input
                   placeholder="输入分类名称"
                   value={newCategory.name}
                   onChange={(e) =>
                     setNewCategory((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  className="bg-[#0c0c12] border-[#272730] text-white placeholder:text-[#6b6b7b]"
+                  className="bg-background"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-sm text-[#6b6b7b]">描述（可选）</Label>
+                <Label className="text-sm text-muted-foreground">描述（可选）</Label>
                 <Input
                   placeholder="分类描述"
                   value={newCategory.description}
                   onChange={(e) =>
                     setNewCategory((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  className="bg-[#0c0c12] border-[#272730] text-white placeholder:text-[#6b6b7b]"
+                  className="bg-background"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-sm text-[#6b6b7b] flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground flex items-center gap-2">
                   <Palette className="h-4 w-4" />
                   选择颜色
                 </Label>
@@ -132,7 +131,7 @@ export function CategoryManager({
                       onClick={() => setNewCategory((prev) => ({ ...prev, color: preset.color }))}
                       className={`w-8 h-8 rounded-lg transition-all relative ${
                         newCategory.color === preset.color
-                          ? "ring-2 ring-white ring-offset-2 ring-offset-[#15151c] scale-110"
+                          ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110"
                           : "hover:scale-105"
                       }`}
                       style={{ backgroundColor: preset.color }}
@@ -148,7 +147,7 @@ export function CategoryManager({
 
               <Button 
                 onClick={handleCreate} 
-                className="w-full bg-[#10b981] text-[#0c0c12] hover:bg-[#10b981]/90"
+                className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 创建分类
@@ -158,7 +157,7 @@ export function CategoryManager({
 
           {/* Category List */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-[#6b6b7b]">现有分类</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">现有分类</h3>
             <div className="space-y-2">
               <AnimatePresence>
                 {categories.map((category) => (
@@ -167,7 +166,7 @@ export function CategoryManager({
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="flex items-center justify-between p-3 bg-[#0c0c12] rounded-xl border border-[#272730]"
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border border-border"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div
@@ -175,9 +174,9 @@ export function CategoryManager({
                         style={{ backgroundColor: category.color }}
                       />
                       <div className="min-w-0">
-                        <p className="font-medium text-white truncate">{category.name}</p>
+                        <p className="font-medium text-foreground truncate">{category.name}</p>
                         {category.description && (
-                          <p className="text-xs text-[#6b6b7b] truncate">
+                          <p className="text-xs text-muted-foreground truncate">
                             {category.description}
                           </p>
                         )}
@@ -186,7 +185,7 @@ export function CategoryManager({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-[#6b6b7b] hover:text-[#ef4444] hover:bg-[#ef4444]/10 shrink-0"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
                       onClick={() => handleDelete(category.id, category.name)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -196,7 +195,7 @@ export function CategoryManager({
               </AnimatePresence>
 
               {categories.length === 0 && (
-                <div className="text-center py-8 text-[#6b6b7b] bg-[#0c0c12] rounded-xl border border-dashed border-[#272730]">
+                <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-xl border border-dashed border-border">
                   <p className="text-sm">暂无分类</p>
                   <p className="text-xs mt-1">创建分类来整理你的提示词</p>
                 </div>

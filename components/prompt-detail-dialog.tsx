@@ -110,8 +110,8 @@ export function PromptDetailDialog({
   }
 
   const getCategoryColor = (id?: string) => {
-    if (!id) return "#6b6b7b"
-    return categories.find((c) => c.id === id)?.color || "#6b6b7b"
+    if (!id) return "#6b7280"
+    return categories.find((c) => c.id === id)?.color || "#6b7280"
   }
 
   const getSourceIcon = (type: string) => {
@@ -167,9 +167,9 @@ export function PromptDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 gap-0 bg-[#15151c] border-[#272730]">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 gap-0 bg-card border-border">
         {/* Header */}
-        <div className="flex items-start justify-between p-6 pb-4 border-b border-[#272730]">
+        <div className="flex items-start justify-between p-6 pb-4 border-b border-border">
           <div className="flex-1 min-w-0 pr-4">
             {/* Title */}
             <AnimatePresence mode="wait">
@@ -184,17 +184,17 @@ export function PromptDetailDialog({
                   <Input
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
-                    className="text-lg font-semibold h-10 bg-[#0c0c12] border-[#272730]"
+                    className="text-lg font-semibold h-10 bg-background border-input"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') saveTitleEdit()
                       if (e.key === 'Escape') setIsEditingTitle(false)
                     }}
                   />
-                  <Button size="icon" variant="ghost" onClick={saveTitleEdit} className="text-[#10b981]">
+                  <Button size="icon" variant="ghost" onClick={saveTitleEdit} className="text-green-600 hover:text-green-700 hover:bg-green-50">
                     <Check className="h-4 w-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" onClick={() => setIsEditingTitle(false)} className="text-[#6b6b7b]">
+                  <Button size="icon" variant="ghost" onClick={() => setIsEditingTitle(false)} className="text-muted-foreground hover:text-foreground">
                     <X className="h-4 w-4" />
                   </Button>
                 </motion.div>
@@ -206,13 +206,13 @@ export function PromptDetailDialog({
                   exit={{ opacity: 0 }}
                   className="flex items-center gap-2 group"
                 >
-                  <DialogTitle className="text-lg font-semibold text-white truncate">
+                  <DialogTitle className="text-lg font-semibold text-foreground truncate cursor-pointer" onClick={startEditingTitle}>
                     {prompt.title}
                   </DialogTitle>
                   <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-[#6b6b7b] hover:text-white"
+                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground shrink-0"
                     onClick={startEditingTitle}
                   >
                     <Edit2 className="h-3.5 w-3.5" />
@@ -226,23 +226,23 @@ export function PromptDetailDialog({
               <span 
                 className="text-xs font-medium px-2 py-0.5 rounded-full"
                 style={{
-                  backgroundColor: getCategoryColor(prompt.categoryId) + "20",
+                  backgroundColor: getCategoryColor(prompt.categoryId) + "15",
                   color: getCategoryColor(prompt.categoryId),
                 }}
               >
                 {getCategoryName(prompt.categoryId)}
               </span>
-              <span className="text-xs text-[#6b6b7b] flex items-center gap-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
                 {getSourceIcon(prompt.sourceType)}
                 {prompt.sourceType === 'LINK' ? '链接' : 
                  prompt.sourceType === 'IMAGE' ? '图片' : 
                  prompt.sourceType === 'VIDEO' ? '视频' : '文本'}
               </span>
-              <span className="text-xs text-[#6b6b7b] flex items-center gap-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Eye className="h-3 w-3" />
                 {prompt.viewCount} 次浏览
               </span>
-              <span className="text-xs text-[#6b6b7b]">
+              <span className="text-xs text-muted-foreground">
                 {formatDate(prompt.createdAt)}
               </span>
             </div>
@@ -253,10 +253,10 @@ export function PromptDetailDialog({
               variant="outline" 
               size="sm" 
               onClick={handleCopy}
-              className="border-[#272730] bg-[#1e1e28] hover:bg-[#272730] text-white"
+              className="border-border hover:bg-accent"
             >
               {copied ? (
-                <CopyCheck className="h-4 w-4 mr-2 text-[#10b981]" />
+                <CopyCheck className="h-4 w-4 mr-2 text-green-600" />
               ) : (
                 <Copy className="h-4 w-4 mr-2" />
               )}
@@ -270,16 +270,16 @@ export function PromptDetailDialog({
           <div className="p-6 space-y-6">
             {/* Category selector */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#6b6b7b]">分类</label>
+              <label className="text-sm font-medium text-muted-foreground">分类</label>
               <Select
                 value={prompt.categoryId || "none"}
                 onValueChange={handleCategoryChange}
               >
-                <SelectTrigger className="bg-[#0c0c12] border-[#272730] text-white">
+                <SelectTrigger className="bg-background border-input">
                   <SelectValue placeholder="选择分类" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1a22] border-[#272730]">
-                  <SelectItem value="none" className="text-white">未分类</SelectItem>
+                <SelectContent>
+                  <SelectItem value="none">未分类</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       <div className="flex items-center gap-2">
@@ -297,23 +297,23 @@ export function PromptDetailDialog({
 
             {/* Content tabs - only show if has preview */}
             {hasPreview && (
-              <div className="flex gap-2 border-b border-[#272730]">
+              <div className="flex gap-2 border-b border-border">
                 <button
                   onClick={() => setActiveTab("content")}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                  className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 ${
                     activeTab === "content"
-                      ? "text-[#10b981] border-[#10b981]"
-                      : "text-[#6b6b7b] border-transparent hover:text-white"
+                      ? "text-primary border-primary"
+                      : "text-muted-foreground border-transparent hover:text-foreground"
                   }`}
                 >
                   提示词内容
                 </button>
                 <button
                   onClick={() => setActiveTab("preview")}
-                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                  className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 ${
                     activeTab === "preview"
-                      ? "text-[#10b981] border-[#10b981]"
-                      : "text-[#6b6b7b] border-transparent hover:text-white"
+                      ? "text-primary border-primary"
+                      : "text-muted-foreground border-transparent hover:text-foreground"
                   }`}
                 >
                   素材预览
@@ -329,7 +329,7 @@ export function PromptDetailDialog({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="rounded-xl overflow-hidden border border-[#272730] bg-[#0c0c12]"
+                  className="rounded-xl overflow-hidden border border-border bg-background"
                 >
                   {prompt.sourceType === 'VIDEO' ? (
                     <div className="relative">
@@ -390,7 +390,7 @@ export function PromptDetailDialog({
                           </div>
                         </div>
                       ) : (
-                        <div className="h-48 flex items-center justify-center text-[#6b6b7b]">
+                        <div className="h-48 flex flex-col items-center justify-center text-muted-foreground">
                           <Video className="h-12 w-12 mb-2" />
                           <p>视频预览不可用</p>
                         </div>
@@ -413,13 +413,13 @@ export function PromptDetailDialog({
                   className="space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-[#6b6b7b]">提示词内容</label>
+                    <label className="text-sm font-medium text-muted-foreground">提示词内容</label>
                     {!isEditingContent && (
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={startEditingContent}
-                        className="h-7 text-[#6b6b7b] hover:text-white"
+                        className="h-7 text-muted-foreground hover:text-foreground"
                       >
                         <Edit2 className="h-3.5 w-3.5 mr-1" />
                         编辑
@@ -432,7 +432,7 @@ export function PromptDetailDialog({
                       <Textarea
                         value={editedContent}
                         onChange={(e) => setEditedContent(e.target.value)}
-                        className="min-h-[300px] font-mono text-sm bg-[#0c0c12] border-[#272730] text-white resize-none"
+                        className="min-h-[300px] font-mono text-sm bg-background border-input resize-none"
                         autoFocus
                       />
                       <div className="flex justify-end gap-2">
@@ -440,14 +440,12 @@ export function PromptDetailDialog({
                           variant="outline" 
                           size="sm" 
                           onClick={() => setIsEditingContent(false)}
-                          className="border-[#272730]"
                         >
                           取消
                         </Button>
                         <Button 
                           size="sm" 
                           onClick={saveContentEdit}
-                          className="bg-[#10b981] text-[#0c0c12] hover:bg-[#10b981]/90"
                         >
                           <Check className="h-4 w-4 mr-1" />
                           保存
@@ -455,8 +453,8 @@ export function PromptDetailDialog({
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-[#0c0c12] rounded-xl border border-[#272730] overflow-hidden">
-                      <pre className="p-4 whitespace-pre-wrap font-mono text-sm text-[#e8e8f0] max-h-[400px] overflow-y-auto">
+                    <div className="bg-muted/50 rounded-xl border border-border overflow-hidden">
+                      <pre className="p-4 whitespace-pre-wrap font-mono text-sm text-foreground max-h-[400px] overflow-y-auto">
                         {prompt.content}
                       </pre>
                     </div>
@@ -468,12 +466,12 @@ export function PromptDetailDialog({
             {/* Source URL */}
             {prompt.sourceUrl && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[#6b6b7b]">来源链接</label>
+                <label className="text-sm font-medium text-muted-foreground">来源链接</label>
                 <a
                   href={prompt.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-3 rounded-xl bg-[#0c0c12] border border-[#272730] text-sm text-[#10b981] hover:bg-[#10b981]/5 transition-colors"
+                  className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-border text-sm text-primary hover:bg-accent transition-colors"
                 >
                   <ExternalLink className="h-4 w-4 shrink-0" />
                   <span className="truncate">{prompt.sourceUrl}</span>
@@ -484,12 +482,12 @@ export function PromptDetailDialog({
             {/* Tags */}
             {prompt.tags.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[#6b6b7b]">标签</label>
+                <label className="text-sm font-medium text-muted-foreground">标签</label>
                 <div className="flex flex-wrap gap-2">
                   {prompt.tags.map((tag, index) => (
                     <span
                       key={index}
-                      className="px-2.5 py-1 rounded-lg bg-[#1e1e28] text-xs text-[#6b6b7b] border border-[#272730]"
+                      className="px-2.5 py-1 rounded-lg bg-muted text-xs text-muted-foreground border border-border hover:border-primary/30 transition-colors"
                     >
                       {tag}
                     </span>

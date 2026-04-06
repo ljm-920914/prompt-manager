@@ -279,8 +279,8 @@ export default function Home() {
           <div className="flex items-center justify-between gap-4">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
-                <Wand2 className="h-5 w-5 text-white" />
+              <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+                <Wand2 className="h-5 w-5 text-primary-foreground" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-bold text-foreground tracking-tight">Prompt Manager</h1>
@@ -301,7 +301,7 @@ export default function Home() {
                 {searchQuery && (
                   <button 
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -367,9 +367,9 @@ export default function Home() {
               
               <div className="space-y-1">
                 <button onClick={() => setSelectedCategory(null)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                     ${selectedCategory === null 
-                      ? "bg-primary/10 text-primary border border-primary/30" 
+                      ? "bg-primary/10 text-primary" 
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     }`}>
                   <span className="flex items-center gap-2.5">
@@ -383,14 +383,13 @@ export default function Home() {
                 
                 {categories.map((category) => (
                   <button key={category.id} onClick={() => setSelectedCategory(category.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                       ${selectedCategory === category.id 
-                        ? "border" 
+                        ? "" 
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
                       }`}
                     style={selectedCategory === category.id ? {
                       backgroundColor: `${category.color}15`,
-                      borderColor: `${category.color}40`,
                       color: category.color
                     } : {}}>
                     <span className="flex items-center gap-2.5">
@@ -426,7 +425,7 @@ export default function Home() {
                   </div>
                   <div className="space-y-1">
                     <button onClick={() => { setSelectedCategory(null); setIsMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                         ${selectedCategory === null 
                           ? "bg-primary/10 text-primary" 
                           : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -440,7 +439,7 @@ export default function Home() {
                     {categories.map((category) => (
                       <button key={category.id} 
                         onClick={() => { setSelectedCategory(category.id); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                           ${selectedCategory === category.id 
                             ? "" 
                             : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -527,13 +526,13 @@ export default function Home() {
                         className="group"
                       >
                         <div onClick={() => handleOpenDetail(prompt)}
-                          className={`relative bg-card rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:bg-muted border border-border hover:border-ring
+                          className={`relative bg-card rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border border-border hover:border-primary/30
                             ${viewMode === 'list' ? 'flex items-center gap-4 p-4' : ''}
                           `}
                         >
                           {/* Preview for grid view */}
                           {viewMode === 'grid' && preview && (
-                            <div className="relative aspect-[16/10] overflow-hidden bg-background">
+                            <div className="relative aspect-[16/10] overflow-hidden bg-muted">
                               {preview.type === 'image' ? (
                                 <img src={preview.data} alt={prompt.title}
                                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -542,17 +541,17 @@ export default function Home() {
                                   <img src={preview.data} alt={prompt.title}
                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                   <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="h-12 w-12 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                                    <div className="h-12 w-12 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110">
                                       <Play className="h-5 w-5 text-white ml-0.5" />
                                     </div>
                                   </div>
                                 </>
                               )}
                               
-                              <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent" />
                               {/* Source type badge */}
                               <div className="absolute top-2 left-2">
-                                <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
+                                <span className="px-2 py-0.5 rounded-md bg-black/50 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
                                   {preview.type === 'video' ? <Video className="h-3 w-3" /> : <Image className="h-3 w-3" />}
                                   {preview.type === 'video' ? '视频' : '图片'}
                                 </span>
@@ -574,7 +573,7 @@ export default function Home() {
                               <DropdownMenu>
                                 <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
                                   <Button variant="ghost" size="icon" 
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-all duration-200 shrink-0">
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -603,8 +602,8 @@ export default function Home() {
                               </div>
                             )}
                             
-                            <p className={`text-sm text-muted-foreground font-mono bg-muted rounded-lg border border-border
-                              ${viewMode === 'grid' ? 'p-3 line-clamp-3' : 'p-2 line-clamp-1 flex-1'}
+                            <p className={`text-sm text-muted-foreground bg-muted/50 rounded-lg
+                              ${viewMode === 'grid' ? 'p-3 line-clamp-2' : 'p-2 line-clamp-1 flex-1'}
                             `}
                             >
                               {prompt.content}
