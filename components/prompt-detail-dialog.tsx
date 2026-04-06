@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Copy, ExternalLink, Eye, CopyCheck } from "lucide-react"
+import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X } from "lucide-react"
 import { toast } from "sonner"
 import type { Prompt, Category } from "@/lib/storage"
 
@@ -37,8 +37,18 @@ export function PromptDetailDialog({
   onUpdate,
 }: PromptDetailDialogProps) {
   const [copied, setCopied] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditingContent, setIsEditingContent] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedContent, setEditedContent] = useState("")
+  const [editedTitle, setEditedTitle] = useState("")
+
+  // Reset edit states when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setIsEditingContent(false)
+      setIsEditingTitle(false)
+    }
+  }, [open])
 
   if (!prompt) return null
 
@@ -54,15 +64,28 @@ export function PromptDetailDialog({
     toast.success("分类已更新")
   }
 
-  const startEditing = () => {
+  const startEditingContent = () => {
     setEditedContent(prompt.content)
-    setIsEditing(true)
+    setIsEditingContent(true)
   }
 
-  const saveEdit = () => {
+  const saveContentEdit = () => {
     onUpdate(prompt.id, { content: editedContent })
-    setIsEditing(false)
+    setIsEditingContent(false)
     toast.success("内容已更新")
+  }
+
+  const startEditingTitle = () => {
+    setEditedTitle(prompt.title)
+    setIsEditingTitle(true)
+  }
+
+  const saveTitleEdit = () => {
+    if (editedTitle.trim()) {
+      onUpdate(prompt.id, { title: editedTitle.trim() })
+      setIsEditingTitle(false)
+      toast.success("标题已更新")
+    }
   }
 
   const getCategoryName = (id?: string) => {
@@ -80,19 +103,52 @@ export function PromptDetailDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start justify-between">
-            <div>
-              <DialogTitle className="text-xl mb-2">{prompt.title}</DialogTitle>
+            <div className="flex-1 min-w-0">
+              {/* Editable Title */}
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2 mb-2">
+                  <Input
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    className="text-xl font-semibold h-10"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveTitleEdit()
+                      if (e.key === 'Escape') setIsEditingTitle(false)
+                    }}
+                  />
+                  <Button size="icon" variant="ghost" onClick={saveTitleEdit}>
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setIsEditingTitle(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 mb-2">
+                  <DialogTitle className="text-xl">{prompt.title}</DialogTitle>
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-8 w-8 opacity-0 hover:opacity-100 transition-opacity"
+                    onClick={startEditingTitle}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              
               <div className="flex items-center gap-2">
-                <Badge
+                <span 
+                  className="text-sm font-medium px-2.5 py-0.5 rounded-full border"
                   style={{
                     backgroundColor: getCategoryColor(prompt.categoryId) + "20",
                     color: getCategoryColor(prompt.categoryId),
-                    borderColor: getCategoryColor(prompt.categoryId),
+                    borderColor: getCategoryColor(prompt.categoryId) + "40",
                   }}
-                  variant="outline"
                 >
                   {getCategoryName(prompt.categoryId)}
-                </Badge>
+                </span>
                 <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <Eye className="h-3 w-3" />
                   {prompt.viewCount} 次浏览
@@ -102,9 +158,9 @@ export function PromptDetailDialog({
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleCopy}>
                 {copied ? (
-                  <CopyCheck className="h-4 w-4 mr-1" />
+                  <CopyCheck className="h-4 w-4 mr-2" />
                 ) : (
-                  <Copy className="h-4 w-4 mr-1" />
+                  <Copy className="h-4 w-4 mr-2" />
                 )}
                 复制
               </Button>
@@ -144,25 +200,28 @@ export function PromptDetailDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">提示词内容</label>
-              {!isEditing && (
-                <Button variant="ghost" size="sm" onClick={startEditing}>
+              {!isEditingContent && (
+                <Button variant="ghost" size="sm" onClick={startEditingContent}>
+                  <Edit2 className="h-4 w-4 mr-1" />
                   编辑
                 </Button>
               )}
             </div>
             
-            {isEditing ? (
+            {isEditingContent ? (
               <div className="space-y-2">
                 <Textarea
                   value={editedContent}
                   onChange={(e) => setEditedContent(e.target.value)}
                   className="min-h-[300px] font-mono text-sm"
+                  autoFocus
                 />
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
+                  <Button variant="outline" size="sm" onClick={() => setIsEditingContent(false)}>
                     取消
                   </Button>
-                  <Button size="sm" onClick={saveEdit}>
+                  <Button size="sm" onClick={saveContentEdit}>
+                    <Check className="h-4 w-4 mr-1" />
                     保存
                   </Button>
                 </div>
@@ -175,20 +234,6 @@ export function PromptDetailDialog({
               </div>
             )}
           </div>
-
-          {/* 标签 */}
-          {prompt.tags.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">标签</label>
-              <div className="flex flex-wrap gap-2">
-                {prompt.tags.map((tag, idx) => (
-                  <Badge key={idx} variant="secondary">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* 来源信息 */}
           {prompt.sourceUrl && (

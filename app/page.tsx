@@ -25,7 +25,8 @@ import {
   Eye,
   X,
   ChevronRight,
-  Filter
+  Filter,
+  Settings
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -38,6 +39,7 @@ import { promptApi, categoryApi, backupApi, aiExtract, type Prompt, type Categor
 import { ThemeToggle } from "@/components/theme-toggle"
 import { GitHubIcon } from "@/components/github-icon"
 import { PromptDetailDialog } from "@/components/prompt-detail-dialog"
+import { CategoryManager } from "@/components/category-manager"
 
 // Animation variants
 const containerVariants = {
@@ -64,6 +66,9 @@ const itemVariants = {
 }
 
 export default function Home() {
+  // All prompts (for counting)
+  const [allPrompts, setAllPrompts] = useState<Prompt[]>([])
+  // Filtered prompts (for display)
   const [prompts, setPrompts] = useState<Prompt[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -75,17 +80,24 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  // Detail dialog state
+  // Dialog states
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
 
   const loadData = useCallback(() => {
-    const loadedPrompts = promptApi.getAll({ 
+    // Get all prompts for counting
+    const allLoadedPrompts = promptApi.getAll()
+    setAllPrompts(allLoadedPrompts)
+    
+    // Get filtered prompts for display
+    const filteredPrompts = promptApi.getAll({ 
       categoryId: selectedCategory || undefined,
       search: searchQuery || undefined 
     })
+    setPrompts(filteredPrompts)
+    
     const loadedCategories = categoryApi.getAll()
-    setPrompts(loadedPrompts)
     setCategories(loadedCategories)
     setIsLoading(false)
   }, [selectedCategory, searchQuery])
@@ -93,6 +105,17 @@ export default function Home() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Category management
+  const handleCreateCategory = (category: Omit<Category, "id">) => {
+    categoryApi.create(category)
+    loadData()
+  }
+
+  const handleDeleteCategory = (id: string) => {
+    categoryApi.delete(id)
+    loadData()
+  }
 
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -304,6 +327,12 @@ export default function Home() {
   }
 
   const getCategoryById = (id?: string) => categories.find(c => c.id === id)
+  
+  // Get count for a category (from all prompts, not filtered)
+  const getCategoryCount = (categoryId?: string) => {
+    if (!categoryId) return allPrompts.length
+    return allPrompts.filter(p => p.categoryId === categoryId).length
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -454,9 +483,19 @@ export default function Home() {
           {/* Sidebar - Categories */}
           <aside className="w-64 shrink-0">
             <div className="sticky top-24 space-y-4">
-              <div className="flex items-center gap-2 px-2 mb-3">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">筛选</span>
+              <div className="flex items-center justify-between px-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">筛选</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2"
+                  onClick={() => setIsCategoryManagerOpen(true)}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
               </div>
               
               <div className="space-y-1">
@@ -475,7 +514,7 @@ export default function Home() {
                     全部提示词
                   </span>
                   <Badge variant={selectedCategory === null ? "secondary" : "outline"} className="text-xs">
-                    {prompts.length}
+                    {getCategoryCount()}
                   </Badge>
                 </button>
                 
@@ -499,7 +538,7 @@ export default function Home() {
                       {category.name}
                     </span>
                     <Badge variant={selectedCategory === category.id ? "secondary" : "outline"} className="text-xs">
-                      {prompts.filter(p => p.categoryId === category.id).length}
+                      {getCategoryCount(category.id)}
                     </Badge>
                   </button>
                 ))}
@@ -598,9 +637,9 @@ export default function Home() {
                               </DropdownMenu>
                             </div>
                             
-                            {/* Category & Tags */}
-                            <div className="flex items-center gap-2 mb-3 flex-wrap">
-                              {category && (
+                            {/* Category */}
+                            {category && (
+                              <div className="mb-3">
                                 <Badge 
                                   style={{ 
                                     backgroundColor: category.color + "15", 
@@ -612,18 +651,8 @@ export default function Home() {
                                 >
                                   {category.name}
                                 </Badge>
-                              )}
-                              {prompt.tags.slice(0, 2).map((tag, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-xs font-normal">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {prompt.tags.length > 2 && (
-                                <Badge variant="secondary" className="text-xs font-normal">
-                                  +{prompt.tags.length - 2}
-                                </Badge>
-                              )}
-                            </div>
+                              </div>
+                            )}
                             
                             {/* Preview */}
                             <p className="text-sm text-muted-foreground line-clamp-3 font-mono bg-muted/50 p-3 rounded-lg">
@@ -666,6 +695,15 @@ export default function Home() {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         onUpdate={handleUpdatePrompt}
+      />
+      
+      {/* Category Manager Dialog */}
+      <CategoryManager
+        categories={categories}
+        open={isCategoryManagerOpen}
+        onOpenChange={setIsCategoryManagerOpen}
+        onCreate={handleCreateCategory}
+        onDelete={handleDeleteCategory}
       />
     </div>
   )
