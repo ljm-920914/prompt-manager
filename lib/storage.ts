@@ -253,7 +253,7 @@ export const backupApi = {
   }
 }
 
-// 生成视频缩略图（第一帧）- 修复版
+// 生成视频缩略图 - 使用更可靠的方法
 async function generateVideoThumbnail(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
@@ -268,35 +268,44 @@ async function generateVideoThumbnail(file: File): Promise<string> {
     const objectUrl = URL.createObjectURL(file)
     let isResolved = false
     
+    // 清理函数
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl)
+      video.removeAttribute('src')
+      video.load()
+      video.remove()
+    }
+    
     // 设置超时
     const timeout = setTimeout(() => {
       if (!isResolved) {
         isResolved = true
-        URL.revokeObjectURL(objectUrl)
-        video.remove()
+        cleanup()
         reject(new Error('生成缩略图超时'))
       }
-    }, 15000)
+    }, 20000)
     
-    // 当视频可以播放时触发（比 onloadedmetadata 更可靠）
-    video.oncanplay = () => {
+    // 成功处理函数
+    const handleSuccess = () => {
       if (isResolved) return
       
       try {
         // 确保视频有有效的尺寸
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          // 尝试跳到第一帧
-          video.currentTime = 0.1
-          return
+        if (!video.videoWidth || !video.videoHeight) {
+          // 如果尺寸无效，尝试使用默认尺寸
+          canvas.width = 640
+          canvas.height = 360
+        } else {
+          // 限制最大宽度为 640px
+          const maxWidth = 640
+          const scale = Math.min(1, maxWidth / video.videoWidth)
+          canvas.width = video.videoWidth * scale
+          canvas.height = video.videoHeight * scale
         }
         
-        // 设置 canvas 尺寸（限制最大宽度为 480px）
-        const maxWidth = 480
-        const scale = Math.min(1, maxWidth / video.videoWidth)
-        canvas.width = video.videoWidth * scale
-        canvas.height = video.videoHeight * scale
-        
         // 绘制视频帧
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
         
         // 转换为 base64
@@ -304,79 +313,45 @@ async function generateVideoThumbnail(file: File): Promise<string> {
         
         isResolved = true
         clearTimeout(timeout)
-        URL.revokeObjectURL(objectUrl)
-        video.remove()
+        cleanup()
         resolve(thumbnail)
       } catch (err) {
         if (!isResolved) {
           isResolved = true
           clearTimeout(timeout)
-          URL.revokeObjectURL(objectUrl)
-          video.remove()
+          cleanup()
           reject(err)
         }
       }
     }
     
-    // 备用：使用 onloadeddata
-    video.onloadeddata = () => {
-      if (isResolved) return
-      
-      try {
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          video.currentTime = 0.1
-          return
-        }
-        
-        const maxWidth = 480
-        const scale = Math.min(1, maxWidth / video.videoWidth)
-        canvas.width = video.videoWidth * scale
-        canvas.height = video.videoHeight * scale
-        
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-        const thumbnail = canvas.toDataURL('image/jpeg', 0.85)
-        
-        isResolved = true
-        clearTimeout(timeout)
-        URL.revokeObjectURL(objectUrl)
-        video.remove()
-        resolve(thumbnail)
-      } catch (err) {
-        if (!isResolved) {
-          isResolved = true
-          clearTimeout(timeout)
-          URL.revokeObjectURL(objectUrl)
-          video.remove()
-          reject(err)
-        }
-      }
-    }
-    
-    video.onerror = () => {
+    // 错误处理
+    const handleError = (e: Event) => {
       if (!isResolved) {
         isResolved = true
         clearTimeout(timeout)
-        URL.revokeObjectURL(objectUrl)
-        video.remove()
-        reject(new Error('视频加载失败'))
+        cleanup()
+        reject(new Error(`视频加载失败: ${e.type}`))
       }
     }
     
+    // 事件监听
+    video.addEventListener('loadeddata', handleSuccess, { once: true })
+    video.addEventListener('error', handleError, { once: true })
+    video.addEventListener('abort', handleError, { once: true })
+    
     // 设置视频属性
-    video.preload = 'auto'
     video.muted = true
     video.playsInline = true
-    video.crossOrigin = 'anonymous'
+    video.preload = 'metadata'
     
     // 加载视频
     video.src = objectUrl
-    video.load()
   })
 }
 
 // 将视频文件转为 base64（限制大小为 50MB）
 async function videoToBase64(file: File): Promise<string | undefined> {
-  // 限制视频大小为 50MB
   const MAX_SIZE = 50 * 1024 * 1024
   
   if (file.size > MAX_SIZE) {
@@ -397,7 +372,6 @@ async function videoToBase64(file: File): Promise<string | undefined> {
 // AI 提取模拟
 export const aiExtract = {
   fromImage: async (fileName: string, base64Data: string): Promise<{ title: string; content: string; tags: string[]; imageData?: string }> => {
-    // 模拟 AI 分析图片提取提示词
     await new Promise(resolve => setTimeout(resolve, 1500))
     
     return {
@@ -435,7 +409,7 @@ negative prompt:
       }
       
       // 模拟 AI 分析
-      await new Promise(resolve => setTimeout(resolve, 800))
+      await new Promise(resolve => setTimeout(resolve, 500))
       
       return {
         title: `从视频提取: ${file.name}`,
@@ -487,7 +461,6 @@ Cyberpunk cityscape at night, neon lights reflecting on wet streets, towering sk
   fromText: async (text: string): Promise<{ title: string; content: string; tags: string[] }> => {
     await new Promise(resolve => setTimeout(resolve, 500))
     
-    // 智能识别文本类型
     const isPrompt = text.includes('prompt') || text.includes('提示词') || text.length > 100
     
     return {
