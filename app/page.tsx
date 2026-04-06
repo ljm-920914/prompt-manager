@@ -130,6 +130,7 @@ export default function Home() {
           content: result.content, 
           sourceType: 'VIDEO',
           sourceFileName: file.name, 
+          sourceFileData: result.videoData,
           sourceVideoData: result.thumbnail,
           tags: result.tags, 
           isPublic: false,
@@ -547,6 +548,7 @@ export default function Home() {
                                   </div>
                                 </>
                               )}
+                              
                               <div className="absolute inset-0 bg-gradient-to-t from-[#15151c] via-transparent to-transparent" />
                               {/* Source type badge */}
                               <div className="absolute top-2 left-2">
@@ -566,6 +568,7 @@ export default function Home() {
                                     {getSourceIcon(prompt.sourceType)}
                                   </div>
                                 )}
+                                
                                 <h3 className="font-medium text-white truncate">{prompt.title}</h3>
                               </div>
                               <DropdownMenu>

@@ -302,6 +302,18 @@ async function generateVideoThumbnail(file: File): Promise<string> {
   })
 }
 
+// 将视频文件转为 base64
+async function videoToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      resolve(e.target?.result as string)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 // AI 提取模拟
 export const aiExtract = {
   fromImage: async (fileName: string, base64Data: string): Promise<{ title: string; content: string; tags: string[] }> => {
@@ -328,17 +340,15 @@ negative prompt:
     }
   },
 
-  fromVideo: async (file: File): Promise<{ title: string; content: string; tags: string[]; thumbnail?: string }> => {
-    // 先生成缩略图
-    let thumbnail: string | undefined
-    try {
-      thumbnail = await generateVideoThumbnail(file)
-    } catch (err) {
-      console.warn('视频缩略图生成失败:', err)
-    }
+  fromVideo: async (file: File): Promise<{ title: string; content: string; tags: string[]; thumbnail?: string; videoData?: string }> => {
+    // 同时生成缩略图和获取视频数据
+    const [thumbnail, videoData] = await Promise.all([
+      generateVideoThumbnail(file).catch(() => undefined),
+      videoToBase64(file)
+    ])
     
     // 模拟 AI 分析
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise(resolve => setTimeout(resolve, 1000))
     
     return {
       title: `从视频提取: ${file.name}`,
@@ -353,7 +363,8 @@ negative prompt:
 生成提示词:
 Cyberpunk cityscape at night, neon lights reflecting on wet streets, towering skyscrapers with holographic advertisements, flying vehicles, dystopian atmosphere, highly detailed, cinematic lighting, 8k quality`,
       tags: ['视频分析', '赛博朋克', '场景描述'],
-      thumbnail
+      thumbnail,
+      videoData
     }
   },
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Dialog,
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Trash2, Image as ImageIcon, Link, FileText, Video, Play } from "lucide-react"
+import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Image as ImageIcon, Link, FileText, Video, Play, Pause, Volume2, VolumeX } from "lucide-react"
 import { toast } from "sonner"
 import type { Prompt, Category } from "@/lib/storage"
 
@@ -43,14 +43,28 @@ export function PromptDetailDialog({
   const [editedContent, setEditedContent] = useState("")
   const [editedTitle, setEditedTitle] = useState("")
   const [activeTab, setActiveTab] = useState<"content" | "preview">("content")
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (!open) {
       setIsEditingContent(false)
       setIsEditingTitle(false)
       setActiveTab("content")
+      setIsPlaying(false)
     }
   }, [open])
+
+  // 当切换到预览标签时，重置视频状态
+  useEffect(() => {
+    if (activeTab !== "preview") {
+      setIsPlaying(false)
+      if (videoRef.current) {
+        videoRef.current.pause()
+      }
+    }
+  }, [activeTab])
 
   if (!prompt) return null
 
@@ -120,9 +134,36 @@ export function PromptDetailDialog({
     })
   }
 
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause()
+      } else {
+        videoRef.current.play()
+      }
+      setIsPlaying(!isPlaying)
+    }
+  }
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted
+      setIsMuted(!isMuted)
+    }
+  }
+
   // 判断是否有预览内容
   const hasPreview = prompt.sourceType === 'IMAGE' && prompt.sourceFileData || 
-                     prompt.sourceType === 'VIDEO' && prompt.sourceVideoData
+                     prompt.sourceType === 'VIDEO' && (prompt.sourceVideoData || prompt.sourceFileData)
+
+  // 获取视频源
+  const getVideoSource = () => {
+    // 优先使用 sourceFileData（完整的视频数据）
+    if (prompt.sourceFileData && prompt.sourceFileData.startsWith('data:video')) {
+      return prompt.sourceFileData
+    }
+    return null
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -288,32 +329,78 @@ export function PromptDetailDialog({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="rounded-xl overflow-hidden border border-[#272730]"
+                  className="rounded-xl overflow-hidden border border-[#272730] bg-[#0c0c12]"
                 >
-                  {prompt.sourceType === 'VIDEO' && prompt.sourceVideoData ? (
+                  {prompt.sourceType === 'VIDEO' ? (
                     <div className="relative">
-                      <img
-                        src={prompt.sourceVideoData}
-                        alt={prompt.title}
-                        className="w-full max-h-[400px] object-contain bg-[#0c0c12]"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="h-16 w-16 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm">
-                          <Play className="h-6 w-6 text-white ml-1" />
+                      {getVideoSource() ? (
+                        <>
+                          <video
+                            ref={videoRef}
+                            src={getVideoSource()!}
+                            className="w-full max-h-[400px] object-contain"
+                            onEnded={() => setIsPlaying(false)}
+                            onPause={() => setIsPlaying(false)}
+                            onPlay={() => setIsPlaying(true)}
+                            muted={isMuted}
+                          />
+                          {/* Video controls overlay */}
+                          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={togglePlay}
+                                className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+                              >
+                                {isPlaying ? (
+                                  <Pause className="h-5 w-5 text-white" />
+                                ) : (
+                                  <Play className="h-5 w-5 text-white ml-0.5" />
+                                )}
+                              </button>
+                              <span className="text-xs text-white/80 flex items-center gap-1">
+                                <Video className="h-3 w-3" />
+                                视频预览
+                              </span>
+                            </div>
+                            <button
+                              onClick={toggleMute}
+                              className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+                            >
+                              {isMuted ? (
+                                <VolumeX className="h-4 w-4 text-white" />
+                              ) : (
+                                <Volume2 className="h-4 w-4 text-white" />
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      ) : prompt.sourceVideoData ? (
+                        // 只有缩略图，显示缩略图和提示
+                        <div className="relative">
+                          <img
+                            src={prompt.sourceVideoData}
+                            alt={prompt.title}
+                            className="w-full max-h-[400px] object-contain"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                            <div className="text-center">
+                              <Video className="h-12 w-12 text-white/60 mx-auto mb-2" />
+                              <p className="text-sm text-white/80">视频预览（仅缩略图）</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                        <span className="text-xs text-white/80 flex items-center gap-1">
-                          <Video className="h-3 w-3" />
-                          视频缩略图
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="h-48 flex items-center justify-center text-[#6b6b7b]">
+                          <Video className="h-12 w-12 mb-2" />
+                          <p>视频预览不可用</p>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <img
                       src={prompt.sourceFileData}
                       alt={prompt.title}
-                      className="w-full max-h-[400px] object-contain bg-[#0c0c12]"
+                      className="w-full max-h-[400px] object-contain"
                     />
                   )}
                 </motion.div>
