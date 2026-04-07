@@ -105,7 +105,7 @@ export default function Home() {
         reader.onload = async (e) => {
           const base64 = e.target?.result as string
           const result = await aiExtract.fromImage(file.name, base64)
-          promptApi.create({
+          const created = promptApi.create({
             title: result.title, 
             content: result.content, 
             sourceType: 'IMAGE',
@@ -114,8 +114,12 @@ export default function Home() {
             tags: result.tags, 
             isPublic: false,
           })
-          toast.success(`已提取图片: ${file.name}`)
-          loadData()
+          if (created) {
+            toast.success(`已提取图片: ${file.name}`)
+            loadData()
+          } else {
+            toast.error(`存储失败: ${file.name}，可能超出存储空间限制`)
+          }
         }
         reader.readAsDataURL(file)
       } else if (file.type.startsWith('video/')) {
@@ -123,7 +127,14 @@ export default function Home() {
         try {
           const result = await aiExtract.fromVideo(file)
           toast.dismiss(toastId)
-          promptApi.create({
+          
+          // 检查是否有数据可以保存
+          if (!result.thumbnail && !result.videoData) {
+            toast.error(`视频处理失败: ${file.name}，无法生成预览`)
+            return
+          }
+          
+          const created = promptApi.create({
             title: result.title, 
             content: result.content, 
             sourceType: 'VIDEO',
@@ -133,12 +144,17 @@ export default function Home() {
             tags: result.tags, 
             isPublic: false,
           })
-          if (result.videoData) {
-            toast.success(`已提取视频: ${file.name}`)
+          
+          if (created) {
+            if (result.videoData) {
+              toast.success(`已提取视频: ${file.name}`)
+            } else {
+              toast.success(`已提取视频缩略图: ${file.name} (视频过大仅保存缩略图)`)
+            }
+            loadData()
           } else {
-            toast.success(`已提取视频缩略图: ${file.name} (视频过大仅保存缩略图)`)
+            toast.error(`存储失败: ${file.name}，可能超出存储空间限制`)
           }
-          loadData()
         } catch (videoError) {
           toast.dismiss(toastId)
           console.error('视频处理失败:', videoError)
@@ -147,7 +163,7 @@ export default function Home() {
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text()
         const result = await aiExtract.fromText(text)
-        promptApi.create({
+        const created = promptApi.create({
           title: result.title, 
           content: result.content, 
           sourceType: 'TEXT',
@@ -155,8 +171,12 @@ export default function Home() {
           tags: result.tags, 
           isPublic: false,
         })
-        toast.success(`已导入文本: ${file.name}`)
-        loadData()
+        if (created) {
+          toast.success(`已导入文本: ${file.name}`)
+          loadData()
+        } else {
+          toast.error(`存储失败: ${file.name}`)
+        }
       } else {
         toast.error(`不支持的文件类型: ${file.type || file.name}`)
       }
@@ -172,7 +192,7 @@ export default function Home() {
     setIsProcessing(true)
     try {
       const result = await aiExtract.fromLink(url)
-      promptApi.create({
+      const created = promptApi.create({
         title: result.title, 
         content: result.content, 
         sourceType: 'LINK',
@@ -180,8 +200,12 @@ export default function Home() {
         tags: result.tags, 
         isPublic: false,
       })
-      toast.success(`已提取链接`)
-      loadData()
+      if (created) {
+        toast.success(`已提取链接`)
+        loadData()
+      } else {
+        toast.error(`存储失败`)
+      }
     } catch (error) {
       toast.error(`链接提取失败`)
     } finally {

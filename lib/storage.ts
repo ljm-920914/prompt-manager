@@ -421,24 +421,36 @@ negative prompt:
   },
 
   fromVideo: async (file: File): Promise<{ title: string; content: string; tags: string[]; thumbnail?: string; videoData?: string }> => {
+    // 先生成缩略图（必须成功）
+    let thumbnail: string | undefined
     try {
-      // 先生成缩略图
-      const thumbnail = await generateVideoThumbnail(file)
-      
-      // 再获取视频数据（仅小文件）
-      let videoData: string | undefined
-      try {
-        videoData = await videoToBase64(file)
-      } catch (e) {
-        console.warn('视频文件过大，仅保存缩略图')
-      }
-      
-      // 模拟 AI 分析
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      return {
-        title: `从视频提取: ${file.name}`,
-        content: `// 从视频提取的提示词
+      thumbnail = await generateVideoThumbnail(file)
+    } catch (thumbError) {
+      console.error('缩略图生成失败:', thumbError)
+      // 即使缩略图失败也继续，使用默认占位图
+      thumbnail = undefined
+    }
+    
+    // 再获取视频数据（仅小文件，可选）
+    let videoData: string | undefined
+    try {
+      videoData = await videoToBase64(file)
+    } catch (e) {
+      console.warn('视频文件过大，仅保存缩略图')
+      videoData = undefined
+    }
+    
+    // 模拟 AI 分析
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // 如果缩略图和视频数据都失败了，抛出错误
+    if (!thumbnail && !videoData) {
+      throw new Error('无法处理视频文件，请检查视频格式')
+    }
+    
+    return {
+      title: `从视频提取: ${file.name}`,
+      content: `// 从视频提取的提示词
 
 视频内容分析:
 - 场景: 城市夜景
@@ -448,13 +460,9 @@ negative prompt:
 
 生成提示词:
 Cyberpunk cityscape at night, neon lights reflecting on wet streets, towering skyscrapers with holographic advertisements, flying vehicles, dystopian atmosphere, highly detailed, cinematic lighting, 8k quality`,
-        tags: ['视频分析', '赛博朋克', '场景描述'],
-        thumbnail,
-        videoData
-      }
-    } catch (error) {
-      console.error('视频处理失败:', error)
-      throw error
+      tags: ['视频分析', '赛博朋克', '场景描述'],
+      thumbnail,
+      videoData
     }
   },
 
