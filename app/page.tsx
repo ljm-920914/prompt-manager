@@ -24,6 +24,9 @@ import { PromptDetailDialog } from "@/components/prompt-detail-dialog"
 import { CategoryManager } from "@/components/category-manager"
 import { EmptyState } from "@/components/empty-state"
 import { DropZone } from "@/components/drop-zone"
+import { Badge } from "@/components/ui/badge"
+
+const APP_VERSION = "1.1.0"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -315,6 +318,9 @@ export default function Home() {
                   <GitHubIcon className="h-5 w-5" />
                 </Button>
               </a>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono text-muted-foreground cursor-help" title={"版本 " + APP_VERSION}>
+                v{APP_VERSION}
+              </Badge>
               <Button variant="ghost" size="icon" className="lg:hidden"
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
                 <Filter className="h-5 w-5" />
