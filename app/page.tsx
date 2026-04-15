@@ -8,7 +8,7 @@ import {
   Search, Link, Image, Video, FileText, Folder,
   Copy, Trash2, Download, Upload, Wand2,
   MoreHorizontal, Eye, Filter, Settings,
-  LayoutGrid, List, X, Play
+  LayoutGrid, List, X, Play, RefreshCw, Cloud, CloudOff, CheckCircle
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
-import { promptApi, categoryApi, backupApi, type Prompt, type Category } from "@/lib/storage"
+import { promptApi, categoryApi, backupApi, syncApi, loadAllData, type Prompt, type Category } from "@/lib/storage"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { GitHubIcon } from "@/components/github-icon"
 import { PromptDetailDialog } from "@/components/prompt-detail-dialog"
@@ -25,8 +25,9 @@ import { CategoryManager } from "@/components/category-manager"
 import { EmptyState } from "@/components/empty-state"
 import { DropZone } from "@/components/drop-zone"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-const APP_VERSION = "1.1.0"
+const APP_VERSION = "1.2.0"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -51,28 +52,44 @@ export default function Home() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<{ connected: boolean; lastSync?: string; gistUrl?: string }>({ connected: false })
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false)
+  const [syncToken, setSyncToken] = useState("")
+  const [isConnecting, setIsConnecting] = useState(false)
 
-  const loadData = useCallback(() => {
-    const allLoadedPrompts = promptApi.getAll()
-    setAllPrompts(allLoadedPrompts)
-    const filteredPrompts = promptApi.getAll({
-      categoryId: selectedCategory || undefined,
-      search: searchQuery || undefined
+  const loadData = useCallback(async () => {
+    const [promptsData, catsData] = await Promise.all([
+      loadAllData(),
+      categoryApi.getAll()
+    ])
+    setAllPrompts(promptsData.prompts)
+    const filtered = promptsData.prompts.filter(p => {
+      if (selectedCategory && p.categoryId !== selectedCategory) return false
+      if (searchQuery) {
+        const s = searchQuery.toLowerCase()
+        if (!p.title.toLowerCase().includes(s) && !p.content.toLowerCase().includes(s) && !p.description?.toLowerCase().includes(s)) return false
+      }
+      return true
     })
-    setPrompts(filteredPrompts)
-    setCategories(categoryApi.getAll())
+    setPrompts(filtered)
+    setCategories(catsData)
     setIsLoading(false)
   }, [selectedCategory, searchQuery])
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleCreateCategory = (category: Omit<Category, "id">) => {
-    categoryApi.create(category)
+  useEffect(() => {
+    syncApi.getStatus().then(setSyncStatus)
+  }, [])
+
+  const handleCreateCategory = async (cat: Omit<Category, 'id'>) => {
+    await categoryApi.create(cat)
     loadData()
   }
 
-  const handleDeleteCategory = (id: string) => {
-    categoryApi.delete(id)
+  const handleDeleteCategory = async (id: string) => {
+    await categoryApi.delete(id)
     loadData()
   }
 
@@ -81,12 +98,12 @@ export default function Home() {
       if (file.type.startsWith('image/')) {
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader()
-          reader.onload = (e) => resolve(e.target?.result as string)
+          reader.onload = e => resolve(e.target?.result as string)
           reader.onerror = reject
           reader.readAsDataURL(file)
         })
         const result = await (await import("@/lib/storage")).aiExtract.fromImage(file.name, base64)
-        const created = promptApi.create({
+        const created = await promptApi.create({
           title: result.title,
           content: result.content,
           sourceType: 'IMAGE',
@@ -99,12 +116,11 @@ export default function Home() {
           toast.success(`已提取图片: ${file.name}`)
           loadData()
         } else {
-          toast.error(`存储失败: ${file.name}，可能超出存储空间限制`)
+          toast.error(`存储失败: ${file.name}，存储空间可能不足`)
         }
       } else if (file.type.startsWith('video/')) {
-        // 视频处理：aiExtract.fromVideo 内部生成缩略图，失败会抛错
         const result = await (await import("@/lib/storage")).aiExtract.fromVideo(file)
-        const created = promptApi.create({
+        const created = await promptApi.create({
           title: result.title,
           content: result.content,
           sourceType: 'VIDEO',
@@ -115,19 +131,16 @@ export default function Home() {
           isPublic: false,
         })
         if (created) {
-          if (result.videoData) {
-            toast.success(`已提取视频: ${file.name}`)
-          } else {
-            toast.success(`已提取视频缩略图: ${file.name}`)
-          }
+          if (result.videoData) toast.success(`已提取视频: ${file.name}`)
+          else toast.warning(`视频较大，已保存缩略图: ${file.name}`)
           loadData()
         } else {
-          toast.error(`存储失败: ${file.name}`)
+          toast.error(`存储失败: ${file.name}，存储空间可能不足`)
         }
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text()
         const result = await (await import("@/lib/storage")).aiExtract.fromText(text)
-        const created = promptApi.create({
+        const created = await promptApi.create({
           title: result.title,
           content: result.content,
           sourceType: 'TEXT',
@@ -153,7 +166,7 @@ export default function Home() {
   const processUrl = async (url: string) => {
     try {
       const result = await (await import("@/lib/storage")).aiExtract.fromLink(url)
-      const created = promptApi.create({
+      const created = await promptApi.create({
         title: result.title,
         content: result.content,
         sourceType: 'LINK',
@@ -172,12 +185,11 @@ export default function Home() {
     }
   }
 
-  const handleDeletePrompt = (id: string) => {
+  const handleDeletePrompt = async (id: string) => {
     if (!confirm("确定要删除这个提示词吗？")) return
-    if (promptApi.delete(id)) {
-      toast.success("删除成功")
-      loadData()
-    }
+    await promptApi.delete(id)
+    toast.success("删除成功")
+    loadData()
   }
 
   const handleCopyPrompt = (content: string, id: string) => {
@@ -187,11 +199,12 @@ export default function Home() {
     loadData()
   }
 
-  const handleUpdatePrompt = (id: string, updates: Partial<Prompt>) => {
-    promptApi.update(id, updates)
+  const handleUpdatePrompt = async (id: string, updates: Partial<Prompt>) => {
+    await promptApi.update(id, updates)
     loadData()
     if (selectedPrompt && selectedPrompt.id === id) {
-      setSelectedPrompt({ ...selectedPrompt, ...updates })
+      const updated = await promptApi.getById(id)
+      if (updated) setSelectedPrompt(updated)
     }
   }
 
@@ -199,11 +212,10 @@ export default function Home() {
     setSelectedPrompt(prompt)
     promptApi.incrementView(prompt.id)
     setIsDetailOpen(true)
-    loadData()
   }
 
-  const handleExport = () => {
-    const data = backupApi.export()
+  const handleExport = async () => {
+    const data = await backupApi.export()
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -218,9 +230,9 @@ export default function Home() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string
-      if (backupApi.import(content)) {
+      if (await backupApi.import(content)) {
         toast.success("导入成功")
         loadData()
       } else {
@@ -229,6 +241,57 @@ export default function Home() {
     }
     reader.readAsText(file)
     e.target.value = ''
+  }
+
+  const handleSync = async () => {
+    setIsSyncing(true)
+    const result = await syncApi.push()
+    setIsSyncing(false)
+    if (result.success) {
+      toast.success(`已同步到云端 ${result.url ? `\n${result.url}` : ''}`)
+      syncApi.getStatus().then(setSyncStatus)
+    } else {
+      toast.error(`同步失败: ${result.error}`)
+    }
+  }
+
+  const handlePull = async () => {
+    setIsSyncing(true)
+    const result = await syncApi.pull()
+    setIsSyncing(false)
+    if (result.success) {
+      toast.success(`已从云端拉取 ${result.count} 条提示词`)
+      loadData()
+      syncApi.getStatus().then(setSyncStatus)
+    } else {
+      toast.error(`拉取失败: ${result.error}`)
+    }
+  }
+
+  const handleConnect = async () => {
+    if (!syncToken.trim()) {
+      toast.error("请输入 GitHub Token")
+      return
+    }
+    setIsConnecting(true)
+    const result = await syncApi.connect(syncToken.trim())
+    setIsConnecting(false)
+    if (result.success) {
+      toast.success("GitHub 连接成功！")
+      setIsSyncModalOpen(false)
+      setSyncToken("")
+      syncApi.getStatus().then(setSyncStatus)
+      // 首次连接，自动推送一次
+      handleSync()
+    } else {
+      toast.error(result.error || "连接失败")
+    }
+  }
+
+  const handleDisconnect = async () => {
+    await syncApi.disconnect()
+    setSyncStatus({ connected: false })
+    toast.success("已断开 GitHub 同步")
   }
 
   const getSourceIcon = (type: string) => {
@@ -252,13 +315,22 @@ export default function Home() {
   }
 
   const getPreviewData = (prompt: Prompt) => {
-    if (prompt.sourceType === 'IMAGE' && prompt.sourceFileData) {
-      return { type: 'image' as const, data: prompt.sourceFileData }
-    }
-    if (prompt.sourceType === 'VIDEO' && prompt.sourceVideoData) {
-      return { type: 'video' as const, data: prompt.sourceVideoData }
-    }
+    if (prompt.sourceType === 'IMAGE' && prompt.sourceFileData) return { type: 'image' as const, data: prompt.sourceFileData }
+    if (prompt.sourceType === 'VIDEO' && prompt.sourceVideoData) return { type: 'video' as const, data: prompt.sourceVideoData }
     return null
+  }
+
+  const formatLastSync = (iso?: string) => {
+    if (!iso) return '从未同步'
+    try {
+      const d = new Date(iso)
+      const now = Date.now()
+      const diff = now - d.getTime()
+      if (diff < 60000) return '刚刚'
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+      return d.toLocaleDateString('zh-CN')
+    } catch { return '未知' }
   }
 
   return (
@@ -267,7 +339,6 @@ export default function Home() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-xl">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
-            {/* Logo */}
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-sm">
                 <Wand2 className="h-5 w-5 text-primary-foreground" />
@@ -278,7 +349,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Search */}
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -289,10 +359,7 @@ export default function Home() {
                   className="pl-10 pr-10"
                 />
                 {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
+                  <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     <X className="h-4 w-4" />
                   </button>
                 )}
@@ -302,14 +369,34 @@ export default function Home() {
             {/* Actions */}
             <div className="flex items-center gap-1">
               <input type="file" accept=".json" onChange={handleImport} className="hidden" id="import-file" />
-              <Button variant="ghost" size="sm" onClick={() => document.getElementById('import-file')?.click()}
-                className="hidden sm:flex">
+              <Button variant="ghost" size="sm" onClick={() => document.getElementById('import-file')?.click()} className="hidden sm:flex">
                 <Upload className="h-4 w-4 mr-2" />导入
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleExport}
-                className="hidden sm:flex">
+              <Button variant="ghost" size="sm" onClick={handleExport} className="hidden sm:flex">
                 <Download className="h-4 w-4 mr-2" />导出
               </Button>
+              {/* 云同步按钮 */}
+              {syncStatus.connected ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleSync}
+                    disabled={isSyncing}
+                    title={`云同步 ${formatLastSync(syncStatus.lastSync)}`}
+                    className="text-green-500 hover:text-green-600"
+                  >
+                    {isSyncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setIsSyncModalOpen(true)} title="云同步设置">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => setIsSyncModalOpen(true)} className="hidden sm:flex gap-1">
+                  <CloudOff className="h-4 w-4" />云同步
+                </Button>
+              )}
               <div className="hidden sm:block">
                 <ThemeToggle />
               </div>
@@ -321,14 +408,79 @@ export default function Home() {
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono text-muted-foreground cursor-help" title={"版本 " + APP_VERSION}>
                 v{APP_VERSION}
               </Badge>
-              <Button variant="ghost" size="icon" className="lg:hidden"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
                 <Filter className="h-5 w-5" />
               </Button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* 云同步 Modal */}
+      <Dialog open={isSyncModalOpen} onOpenChange={setIsSyncModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{syncStatus.connected ? "云同步设置" : "连接 GitHub 云同步"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {syncStatus.connected ? (
+              <>
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">已连接 GitHub</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  上次同步: {formatLastSync(syncStatus.lastSync)}
+                </p>
+                {syncStatus.gistUrl && (
+                  <a href={syncStatus.gistUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline break-all">
+                    查看 Gist: {syncStatus.gistUrl}
+                  </a>
+                )}
+                <div className="flex gap-2">
+                  <Button onClick={handleSync} disabled={isSyncing} className="flex-1">
+                    <Cloud className="h-4 w-4 mr-2" />推送本地数据
+                  </Button>
+                  <Button onClick={handlePull} disabled={isSyncing} variant="outline" className="flex-1">
+                    <RefreshCw className="h-4 w-4 mr-2" />从云端拉取
+                  </Button>
+                </div>
+                <Button onClick={handleDisconnect} variant="ghost" className="w-full text-red-500 hover:text-red-600">
+                  断开连接
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  使用 GitHub Personal Access Token 将数据同步到 Gist，换电脑也能看到你的提示词。
+                </p>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">GitHub Token</label>
+                  <Input
+                    type="password"
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    value={syncToken}
+                    onChange={e => setSyncToken(e.target.value)}
+                  />
+                </div>
+                <Button onClick={handleConnect} disabled={isConnecting} className="w-full">
+                  {isConnecting ? "连接中..." : "连接并同步"}
+                </Button>
+                <details className="text-xs text-muted-foreground">
+                  <summary className="cursor-pointer hover:text-foreground">如何生成 GitHub Token？</summary>
+                  <div className="mt-2 space-y-1">
+                    <p>1. 打开 <a href="https://github.com/settings/tokens/new" target="_blank" className="text-blue-500 hover:underline">github.com/settings/tokens/new</a></p>
+                    <p>2. Note 随便填，如 "prompt-manager"</p>
+                    <p>3. Expiration 选 30 days 或更长</p>
+                    <p>4. 勾选 <strong>repo</strong> (完整仓库访问)</p>
+                    <p>5. 点 Generate token，复制粘贴到这里</p>
+                  </div>
+                </details>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Drop Zone */}
       <div className="container mx-auto px-4 py-6">
@@ -344,49 +496,30 @@ export default function Home() {
         <div className="flex gap-6">
           {/* Sidebar - Desktop */}
           <aside className="hidden lg:block w-56 shrink-0">
-            <div className="sticky top-20 space-y-2">
-              <div className="flex items-center justify-between px-2 mb-3">
-                <span className="text-sm font-medium text-muted-foreground">分类</span>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
-                  onClick={() => setIsCategoryManagerOpen(true)}>
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="space-y-1">
-                <button onClick={() => setSelectedCategory(null)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-                    ${selectedCategory === null
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}>
-                  <span className="flex items-center gap-2.5">
-                    <Folder className="h-4 w-4" />
-                    全部提示词
-                  </span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
-                    {getCategoryCount()}
-                  </span>
+            <div className="sticky top-[88px] space-y-1">
+              <button
+                onClick={clearSearch}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${!selectedCategory ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                <Folder className="h-4 w-4 inline mr-2" />
+                全部提示词
+                <span className="ml-auto text-xs opacity-60">{getCategoryCount(undefined)}</span>
+              </button>
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                >
+                  <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: cat.color }} />
+                  {cat.name}
+                  <span className="ml-auto text-xs opacity-60">{getCategoryCount(cat.id)}</span>
                 </button>
-
-                {categories.map((category) => (
-                  <button key={category.id} onClick={() => setSelectedCategory(category.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-                      ${selectedCategory === category.id ? "" : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}
-                    style={selectedCategory === category.id ? {
-                      backgroundColor: `${category.color}15`,
-                      color: category.color
-                    } : {}}>
-                    <span className="flex items-center gap-2.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
-                      {category.name}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
-                      {getCategoryCount(category.id)}
-                    </span>
-                  </button>
-                ))}
+              ))}
+              <div className="pt-3 border-t border-border mt-3">
+                <button onClick={() => setIsCategoryManagerOpen(true)} className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+                  <Settings className="h-4 w-4 inline mr-2" />管理分类
+                </button>
               </div>
             </div>
           </aside>
@@ -394,242 +527,197 @@ export default function Home() {
           {/* Mobile Sidebar */}
           <AnimatePresence>
             {isMobileMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="fixed inset-0 z-40 lg:hidden"
-              >
-                <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
-                <div className="absolute left-0 top-0 bottom-0 w-64 bg-background border-r border-border p-4">
+              <>
+                <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setIsMobileMenuOpen(false)} />
+                <motion.aside
+                  initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+                  transition={{ type: 'spring', damping: 25 }}
+                  className="fixed left-0 top-0 bottom-0 w-56 bg-background z-50 p-4 shadow-xl lg:hidden overflow-y-auto"
+                >
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-muted-foreground">分类</span>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
-                      onClick={() => setIsCategoryManagerOpen(true)}>
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                    <span className="font-medium">分类</span>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-1 hover:bg-muted rounded">
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
                   <div className="space-y-1">
-                    <button onClick={() => { setSelectedCategory(null); setIsMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                        ${selectedCategory === null
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                        }`}>
-                      <span className="flex items-center gap-2.5">
-                        <Folder className="h-4 w-4" />
-                        全部提示词
-                      </span>
-                      <span className="text-xs">{getCategoryCount()}</span>
+                    <button onClick={() => { clearSearch(); setIsMobileMenuOpen(false) }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm ${!selectedCategory ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground'}`}>
+                      全部提示词 ({getCategoryCount(undefined)})
                     </button>
-                    {categories.map((category) => (
-                      <button key={category.id}
-                        onClick={() => { setSelectedCategory(category.id); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                          ${selectedCategory === category.id ? "" : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                          }`}
-                        style={selectedCategory === category.id ? {
-                          backgroundColor: `${category.color}15`,
-                          color: category.color
-                        } : {}}>
-                        <span className="flex items-center gap-2.5">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
-                          {category.name}
-                        </span>
-                        <span className="text-xs">{getCategoryCount(category.id)}</span>
+                    {categories.map(cat => (
+                      <button key={cat.id} onClick={() => { setSelectedCategory(cat.id); setIsMobileMenuOpen(false) }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedCategory === cat.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground'}`}>
+                        <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: cat.color }} />
+                        {cat.name} ({getCategoryCount(cat.id)})
                       </button>
                     ))}
+                    <div className="pt-3 border-t border-border mt-3">
+                      <button onClick={() => setIsCategoryManagerOpen(true)} className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg">
+                        <Settings className="h-4 w-4 inline mr-2" />管理分类
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
+                </motion.aside>
+              </>
             )}
           </AnimatePresence>
 
-          {/* Prompts Grid */}
+          {/* Content */}
           <main className="flex-1 min-w-0">
             {/* Toolbar */}
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold text-foreground">
-                  {selectedCategory ? categories.find(c => c.id === selectedCategory)?.name : '全部提示词'}
-                </h2>
-                <span className="text-sm text-muted-foreground">({prompts.length})</span>
-                {(searchQuery || selectedCategory) && (
-                  <button
-                    onClick={clearSearch}
-                    className="text-xs text-primary hover:underline ml-2"
-                  >
-                    清除筛选
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-8 w-8 ${viewMode === 'grid' ? 'text-primary' : 'text-muted-foreground'}`}
-                  onClick={() => setViewMode('grid')}
-                >
+              <p className="text-sm text-muted-foreground">
+                {isLoading ? '加载中...' : `${prompts.length} 条提示词`}
+                {searchQuery && ` · 搜索: "${searchQuery}"`}
+                {selectedCategory && ` · ${getCategoryById(selectedCategory)?.name || ''}`}
+              </p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
                   <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-8 w-8 ${viewMode === 'list' ? 'text-primary' : 'text-muted-foreground'}`}
-                  onClick={() => setViewMode('list')}
-                >
+                </button>
+                <button onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
                   <List className="h-4 w-4" />
-                </Button>
+                </button>
               </div>
             </div>
 
-            <AnimatePresence mode="popLayout">
-              {prompts.length === 0 && !isLoading ? (
-                <EmptyState
-                  hasFilters={!!searchQuery || !!selectedCategory}
-                  onClearFilters={clearSearch}
-                />
-              ) : (
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className={viewMode === 'grid'
-                    ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-                    : "space-y-3"
-                  }
-                >
-                  {prompts.map((prompt) => {
-                    const category = getCategoryById(prompt.categoryId)
-                    const preview = getPreviewData(prompt)
-                    return (
-                      <motion.div key={prompt.id} variants={itemVariants} layout className="group">
-                        <div onClick={() => handleOpenDetail(prompt)}
-                          className={`relative bg-card rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border border-border hover:border-primary/30
-                            ${viewMode === 'list' ? 'flex items-center gap-4 p-4' : ''}
-                          `}
-                        >
-                          {/* Grid: Preview */}
-                          {viewMode === 'grid' && preview && (
-                            <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-                              {preview.type === 'image' ? (
-                                <img src={preview.data} alt={prompt.title}
-                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                              ) : (
-                                <>
-                                  <img src={preview.data} alt={prompt.title}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="h-12 w-12 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110">
-                                      <Play className="h-5 w-5 text-white ml-0.5" />
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                              <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent" />
-                              <div className="absolute top-2 left-2">
-                                <span className="px-2 py-0.5 rounded-md bg-black/50 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
-                                  {preview.type === 'video' ? <Video className="h-3 w-3" /> : <Image className="h-3 w-3" />}
-                                  {preview.type === 'video' ? '视频' : '图片'}
-                                </span>
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="h-40 rounded-xl bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : prompts.length === 0 ? (
+              <EmptyState viewMode={viewMode} onImport={() => document.getElementById('import-file')?.click()} />
+            ) : viewMode === 'grid' ? (
+              <motion.div variants={containerVariants} initial="hidden" animate="visible"
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {prompts.map(prompt => {
+                  const preview = getPreviewData(prompt)
+                  return (
+                    <motion.div key={prompt.id} variants={itemVariants}>
+                      <div className="group relative rounded-xl border border-border bg-card hover:border-primary/50 transition-all cursor-pointer overflow-hidden"
+                        onClick={() => handleOpenDetail(prompt)}>
+                        {preview ? (
+                          preview.type === 'image' ? (
+                            <div className="relative aspect-video overflow-hidden">
+                              <img src={preview.data} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="relative aspect-video overflow-hidden bg-black/80">
+                              <img src={preview.data} alt="" className="w-full h-full object-contain" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center">
+                                  <Play className="h-5 w-5 text-white fill-white" />
+                                </div>
                               </div>
                             </div>
-                          )}
-
-                          <div className={`${viewMode === 'grid' ? 'p-4' : 'flex-1 min-w-0'}`}>
-                            <div className="flex items-start justify-between gap-3 mb-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {viewMode === 'list' && (
-                                  <div className="p-1.5 rounded-lg bg-muted text-muted-foreground">
-                                    {getSourceIcon(prompt.sourceType)}
-                                  </div>
-                                )}
-                                <h3 className="font-medium text-foreground truncate">{prompt.title}</h3>
-                              </div>
+                          )
+                        ) : (
+                          <div className="h-24 bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+                            {getSourceIcon(prompt.sourceType)}
+                          </div>
+                        )}
+                        <div className="p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-medium text-sm line-clamp-1">{prompt.title}</h3>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {getSourceIcon(prompt.sourceType)}
                               <DropdownMenu>
-                                <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="ghost" size="icon"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-all duration-200 shrink-0">
+                                <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                  <button className="p-1 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity">
                                     <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
+                                  </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id); }}>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleCopyPrompt(prompt.content, prompt.id)}>
                                     <Copy className="h-4 w-4 mr-2" />复制
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeletePrompt(prompt.id); }}
-                                    className="text-destructive">
+                                  <DropdownMenuItem onClick={() => handleOpenDetail(prompt)}>
+                                    <Eye className="h-4 w-4 mr-2" />查看详情
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDeletePrompt(prompt.id)} className="text-red-500">
                                     <Trash2 className="h-4 w-4 mr-2" />删除
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
-
-                            {viewMode === 'grid' && category && (
-                              <div className="mb-3">
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                                  style={{
-                                    backgroundColor: `${category.color}15`,
-                                    color: category.color,
-                                  }}
-                                >
-                                  {category.name}
-                                </span>
-                              </div>
-                            )}
-
-                            <p className={`text-sm text-muted-foreground bg-muted/50 rounded-lg
-                              ${viewMode === 'grid' ? 'p-3 line-clamp-2' : 'p-2 line-clamp-1 flex-1'}
-                            `}>
-                              {prompt.content}
-                            </p>
-
-                            <div className={`flex items-center justify-between mt-3 pt-3 border-t border-border
-                              ${viewMode === 'list' ? 'border-0 pt-0 mt-2' : ''}
-                            `}>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Eye className="h-3.5 w-3.5" />{prompt.viewCount}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Copy className="h-3.5 w-3.5" />{prompt.useCount}
-                                </span>
-                              </div>
-                              {viewMode === 'list' && category && (
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                                  style={{
-                                    backgroundColor: `${category.color}15`,
-                                    color: category.color,
-                                  }}
-                                >
-                                  {category.name}
-                                </span>
-                              )}
-                            </div>
                           </div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{prompt.content}</p>
+                          {prompt.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {prompt.tags.slice(0,3).map(tag => (
+                                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{tag}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </motion.div>
-                    )
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </motion.div>
+            ) : (
+              <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-2">
+                {prompts.map(prompt => (
+                  <motion.div key={prompt.id} variants={itemVariants}>
+                    <div className="group flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
+                      onClick={() => handleOpenDetail(prompt)}>
+                      <div className="shrink-0">
+                        {getSourceIcon(prompt.sourceType)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-sm truncate">{prompt.title}</h3>
+                          {prompt.isPublic && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600">已公开</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{prompt.content}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={e => { e.stopPropagation(); handleCopyPrompt(prompt.content, prompt.id) }}
+                          className="p-2 hover:bg-muted rounded-lg"><Copy className="h-4 w-4" /></button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                            <button className="p-2 hover:bg-muted rounded-lg"><MoreHorizontal className="h-4 w-4" /></button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleOpenDetail(prompt)}><Eye className="h-4 w-4 mr-2" />查看详情</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeletePrompt(prompt.id)} className="text-red-500"><Trash2 className="h-4 w-4 mr-2" />删除</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
           </main>
         </div>
       </div>
 
-      <PromptDetailDialog
-        prompt={selectedPrompt}
-        categories={categories}
-        open={isDetailOpen}
-        onOpenChange={setIsDetailOpen}
-        onUpdate={handleUpdatePrompt}
-      />
+      {/* Detail Dialog */}
+      {selectedPrompt && (
+        <PromptDetailDialog
+          prompt={selectedPrompt}
+          open={isDetailOpen}
+          onOpenChange={setIsDetailOpen}
+          categories={categories}
+          onUpdate={handleUpdatePrompt}
+          onCopy={handleCopyPrompt}
+          onDelete={handleDeletePrompt}
+        />
+      )}
+
+      {/* Category Manager */}
       <CategoryManager
-        categories={categories}
         open={isCategoryManagerOpen}
         onOpenChange={setIsCategoryManagerOpen}
+        categories={categories}
         onCreate={handleCreateCategory}
+        onUpdate={categoryApi.update}
         onDelete={handleDeleteCategory}
       />
     </div>
