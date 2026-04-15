@@ -18,7 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X, Image as ImageIcon, Link, FileText, Video, Play, Pause, Volume2, VolumeX, Maximize2 } from "lucide-react"
+import {
+  Copy, ExternalLink, Eye, CopyCheck, Edit2, Check, X,
+  Image as ImageIcon, Link, FileText, Video,
+  Play, Pause, Volume2, VolumeX, Maximize2, Download, Loader2
+} from "lucide-react"
 import { toast } from "sonner"
 import type { Prompt, Category } from "@/lib/storage"
 
@@ -59,13 +63,10 @@ export function PromptDetailDialog({
     }
   }, [open])
 
-  // 当切换到预览标签时，重置视频状态
   useEffect(() => {
     if (activeTab !== "preview") {
       setIsPlaying(false)
-      if (videoRef.current) {
-        videoRef.current.pause()
-      }
+      if (videoRef.current) videoRef.current.pause()
     }
   }, [activeTab])
 
@@ -76,6 +77,15 @@ export function PromptDetailDialog({
     setCopied(true)
     toast.success("已复制到剪贴板")
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleDownloadSource = () => {
+    if (!prompt.sourceFileData) return
+    const link = document.createElement('a')
+    link.href = prompt.sourceFileData
+    link.download = prompt.sourceFileName || (prompt.sourceType === 'IMAGE' ? 'image.jpg' : 'video.mp4')
+    link.click()
+    toast.success("开始下载素材")
   }
 
   const handleCategoryChange = (categoryId: string) => {
@@ -128,9 +138,9 @@ export function PromptDetailDialog({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('zh-CN', { 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -139,11 +149,8 @@ export function PromptDetailDialog({
 
   const togglePlay = () => {
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause()
-      } else {
-        videoRef.current.play()
-      }
+      if (isPlaying) videoRef.current.pause()
+      else videoRef.current.play()
       setIsPlaying(!isPlaying)
     }
   }
@@ -157,34 +164,26 @@ export function PromptDetailDialog({
 
   const toggleFullscreen = () => {
     if (!videoContainerRef.current) return
-    
     if (!document.fullscreenElement) {
-      videoContainerRef.current.requestFullscreen().then(() => {
-        setIsFullscreen(true)
-      }).catch(() => {
-        toast.error("无法进入全屏模式")
-      })
+      videoContainerRef.current.requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch(() => toast.error("无法进入全屏模式"))
     } else {
-      document.exitFullscreen().then(() => {
-        setIsFullscreen(false)
-      })
+      document.exitFullscreen()
+        .then(() => setIsFullscreen(false))
     }
   }
 
-  // 判断是否有预览内容
-  const hasPreview = prompt.sourceType === 'IMAGE' && prompt.sourceFileData || 
+  const hasPreview = prompt.sourceType === 'IMAGE' && prompt.sourceFileData ||
                      prompt.sourceType === 'VIDEO' && (prompt.sourceVideoData || prompt.sourceFileData)
 
-  // 获取视频源
   const getVideoSource = () => {
-    // 优先使用 sourceFileData（完整的视频数据）
     if (prompt.sourceFileData && prompt.sourceFileData.startsWith('data:video')) {
       return prompt.sourceFileData
     }
     return null
   }
 
-  // 获取图片源
   const getImageSource = () => {
     if (prompt.sourceType === 'IMAGE' && prompt.sourceFileData) {
       return prompt.sourceFileData
@@ -198,16 +197,9 @@ export function PromptDetailDialog({
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4 border-b border-border">
           <div className="flex-1 min-w-0 pr-4">
-            {/* Title */}
             <AnimatePresence mode="wait">
               {isEditingTitle ? (
-                <motion.div 
-                  key="editing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-2"
-                >
+                <motion.div key="editing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
                   <Input
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
@@ -226,82 +218,50 @@ export function PromptDetailDialog({
                   </Button>
                 </motion.div>
               ) : (
-                <motion.div 
-                  key="display"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-2 group"
-                >
+                <motion.div key="display" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 group">
                   <DialogTitle className="text-lg font-semibold text-foreground truncate cursor-pointer" onClick={startEditingTitle}>
                     {prompt.title}
                   </DialogTitle>
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground shrink-0"
-                    onClick={startEditingTitle}
-                  >
+                  <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-all duration-200 text-muted-foreground hover:text-foreground shrink-0" onClick={startEditingTitle}>
                     <Edit2 className="h-3.5 w-3.5" />
                   </Button>
                 </motion.div>
               )}
             </AnimatePresence>
-            
-            {/* Meta info */}
+
+            {/* Meta */}
             <div className="flex items-center gap-3 mt-2 flex-wrap">
-              <span 
-                className="text-xs font-medium px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: getCategoryColor(prompt.categoryId) + "15",
-                  color: getCategoryColor(prompt.categoryId),
-                }}
-              >
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: getCategoryColor(prompt.categoryId) + "15", color: getCategoryColor(prompt.categoryId) }}>
                 {getCategoryName(prompt.categoryId)}
               </span>
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 {getSourceIcon(prompt.sourceType)}
-                {prompt.sourceType === 'LINK' ? '链接' : 
-                 prompt.sourceType === 'IMAGE' ? '图片' : 
-                 prompt.sourceType === 'VIDEO' ? '视频' : '文本'}
+                {prompt.sourceType === 'LINK' ? '链接' : prompt.sourceType === 'IMAGE' ? '图片' : prompt.sourceType === 'VIDEO' ? '视频' : '文本'}
               </span>
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Eye className="h-3 w-3" />
-                {prompt.viewCount} 次浏览
+                <Eye className="h-3 w-3" />{prompt.viewCount} 次浏览
               </span>
-              <span className="text-xs text-muted-foreground">
-                {formatDate(prompt.createdAt)}
-              </span>
+              <span className="text-xs text-muted-foreground">{formatDate(prompt.createdAt)}</span>
             </div>
           </div>
-          
+
           <div className="flex gap-2 shrink-0">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleCopy}
-              className="border-border hover:bg-accent"
-            >
-              {copied ? (
-                <CopyCheck className="h-4 w-4 mr-2 text-green-600" />
-              ) : (
-                <Copy className="h-4 w-4 mr-2" />
-              )}
+            <Button variant="outline" size="sm" onClick={handleCopy} className="border-border hover:bg-accent">
+              {copied ? <CopyCheck className="h-4 w-4 mr-2 text-green-600" /> : <Copy className="h-4 w-4 mr-2" />}
               复制
             </Button>
           </div>
         </div>
 
-        {/* Content */}
+        {/* Body */}
         <div className="overflow-y-auto max-h-[calc(90vh-180px)]">
           <div className="p-6 space-y-6">
-            {/* Category selector */}
+
+            {/* Category */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">分类</label>
-              <Select
-                value={prompt.categoryId || "none"}
-                onValueChange={handleCategoryChange}
-              >
+              <Select value={prompt.categoryId || "none"} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="bg-background border-input">
                   <SelectValue placeholder="选择分类" />
                 </SelectTrigger>
@@ -310,10 +270,7 @@ export function PromptDetailDialog({
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: category.color }}
-                        />
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
                         {category.name}
                       </div>
                     </SelectItem>
@@ -322,44 +279,50 @@ export function PromptDetailDialog({
               </Select>
             </div>
 
-            {/* Content tabs - only show if has preview */}
+            {/* Tab bar */}
             {hasPreview && (
               <div className="flex gap-2 border-b border-border">
-                <button
-                  onClick={() => setActiveTab("content")}
+                <button onClick={() => setActiveTab("content")}
                   className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 ${
-                    activeTab === "content"
-                      ? "text-primary border-primary"
-                      : "text-muted-foreground border-transparent hover:text-foreground"
-                  }`}
-                >
+                    activeTab === "content" ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"
+                  }`}>
                   提示词内容
                 </button>
-                <button
-                  onClick={() => setActiveTab("preview")}
+                <button onClick={() => setActiveTab("preview")}
                   className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 ${
-                    activeTab === "preview"
-                      ? "text-primary border-primary"
-                      : "text-muted-foreground border-transparent hover:text-foreground"
-                  }`}
-                >
+                    activeTab === "preview" ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"
+                  }`}>
                   素材预览
                 </button>
               </div>
             )}
 
-            {/* Content area */}
+            {/* Content */}
             <AnimatePresence mode="wait">
               {activeTab === "preview" && hasPreview ? (
-                <motion.div
-                  key="preview"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="rounded-xl overflow-hidden border border-border bg-background"
-                >
-                  {prompt.sourceType === 'VIDEO' ? (
-                    <div ref={videoContainerRef} className="relative bg-black">
+                <motion.div key="preview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+
+                  {/* 图片预览 */}
+                  {prompt.sourceType === 'IMAGE' && getImageSource() && (
+                    <div className="relative rounded-xl overflow-hidden bg-muted border border-border">
+                      <img src={getImageSource()!} alt={prompt.title}
+                        className="w-full max-h-[500px] object-contain" />
+                      <div className="absolute bottom-2 right-2 flex gap-2">
+                        <button onClick={handleDownloadSource}
+                          className="px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1 hover:bg-black/80 transition-colors">
+                          <Download className="h-3 w-3" />下载原图
+                        </button>
+                        <span className="px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" />原图预览
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 视频预览 */}
+                  {prompt.sourceType === 'VIDEO' && (
+                    <div ref={videoContainerRef} className="relative rounded-xl overflow-hidden bg-black border border-border">
+                      {/* 有完整视频 → 播放器 */}
                       {getVideoSource() ? (
                         <>
                           <video
@@ -372,51 +335,41 @@ export function PromptDetailDialog({
                             muted={isMuted}
                             playsInline
                           />
-                          {/* Video controls overlay */}
                           <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <button
-                                  onClick={togglePlay}
-                                  className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-                                >
-                                  {isPlaying ? (
-                                    <Pause className="h-5 w-5 text-white" />
-                                  ) : (
-                                    <Play className="h-5 w-5 text-white ml-0.5" />
-                                  )}
+                                <button onClick={togglePlay}
+                                  className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+                                  {isPlaying
+                                    ? <Pause className="h-5 w-5 text-white" />
+                                    : <Play className="h-5 w-5 text-white ml-0.5" />
+                                  }
                                 </button>
-                                <span className="text-xs text-white/80 flex items-center gap-1">
-                                  <Video className="h-3 w-3" />
+                                <span className="text-xs text-white/80">
                                   {isPlaying ? '播放中' : '已暂停'}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <button
-                                  onClick={toggleMute}
-                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-                                >
-                                  {isMuted ? (
-                                    <VolumeX className="h-4 w-4 text-white" />
-                                  ) : (
-                                    <Volume2 className="h-4 w-4 text-white" />
-                                  )}
+                                <button onClick={toggleMute}
+                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+                                  {isMuted
+                                    ? <VolumeX className="h-4 w-4 text-white" />
+                                    : <Volume2 className="h-4 w-4 text-white" />
+                                  }
                                 </button>
-                                <button
-                                  onClick={toggleFullscreen}
-                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-                                >
+                                <button onClick={toggleFullscreen}
+                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
                                   <Maximize2 className="h-4 w-4 text-white" />
+                                </button>
+                                <button onClick={handleDownloadSource}
+                                  className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+                                  <Download className="h-4 w-4 text-white" />
                                 </button>
                               </div>
                             </div>
                           </div>
-                          {/* Click to play overlay when paused */}
                           {!isPlaying && (
-                            <div 
-                              className="absolute inset-0 flex items-center justify-center cursor-pointer"
-                              onClick={togglePlay}
-                            >
+                            <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={togglePlay}>
                               <div className="h-16 w-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors">
                                 <Play className="h-8 w-8 text-white ml-1" />
                               </div>
@@ -424,19 +377,18 @@ export function PromptDetailDialog({
                           )}
                         </>
                       ) : prompt.sourceVideoData ? (
-                        // 只有缩略图，显示缩略图和提示
+                        /* 只有缩略图 */
                         <div className="relative">
-                          <img
-                            src={prompt.sourceVideoData}
-                            alt={prompt.title}
-                            className="w-full max-h-[400px] object-contain"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                            <div className="text-center">
-                              <Video className="h-12 w-12 text-white/60 mx-auto mb-2" />
-                              <p className="text-sm text-white/80">视频预览（仅缩略图）</p>
-                              <p className="text-xs text-white/60 mt-1">原视频文件过大未保存</p>
-                            </div>
+                          <img src={prompt.sourceVideoData} alt={prompt.title}
+                            className="w-full max-h-[400px] object-contain" />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
+                            <Video className="h-10 w-10 text-white/60 mb-2" />
+                            <p className="text-sm text-white/80">视频预览（仅缩略图）</p>
+                            <p className="text-xs text-white/50 mt-1">原视频 &gt; 5MB 未保存</p>
+                            <button onClick={() => toast.info("视频较大，可在详情中查看缩略图")}
+                              className="mt-3 px-3 py-1.5 rounded-lg bg-white/20 text-white text-xs hover:bg-white/30 transition-colors backdrop-blur-sm">
+                              了解原因
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -446,68 +398,28 @@ export function PromptDetailDialog({
                         </div>
                       )}
                     </div>
-                  ) : prompt.sourceType === 'IMAGE' ? (
-                    <div className="relative bg-muted">
-                      <img
-                        src={getImageSource()!}
-                        alt={prompt.title}
-                        className="w-full max-h-[500px] object-contain"
-                      />
-                      <div className="absolute bottom-2 right-2">
-                        <span className="px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
-                          <ImageIcon className="h-3 w-3" />
-                          原图预览
-                        </span>
-                      </div>
-                    </div>
-                  ) : null}
+                  )}
                 </motion.div>
               ) : (
-                <motion.div
-                  key="content"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-2"
-                >
+                <motion.div key="content" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-muted-foreground">提示词内容</label>
                     {!isEditingContent && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={startEditingContent}
-                        className="h-7 text-muted-foreground hover:text-foreground"
-                      >
-                        <Edit2 className="h-3.5 w-3.5 mr-1" />
-                        编辑
+                      <Button variant="ghost" size="sm" onClick={startEditingContent}
+                        className="h-7 text-muted-foreground hover:text-foreground">
+                        <Edit2 className="h-3.5 w-3.5 mr-1" />编辑
                       </Button>
                     )}
                   </div>
-                  
+
                   {isEditingContent ? (
                     <div className="space-y-3">
-                      <Textarea
-                        value={editedContent}
-                        onChange={(e) => setEditedContent(e.target.value)}
+                      <Textarea value={editedContent} onChange={(e) => setEditedContent(e.target.value)}
                         className="min-h-[300px] font-mono text-sm bg-background border-input resize-none"
-                        autoFocus
-                      />
+                        autoFocus />
                       <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => setIsEditingContent(false)}
-                        >
-                          取消
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          onClick={saveContentEdit}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          保存
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setIsEditingContent(false)}>取消</Button>
+                        <Button size="sm" onClick={saveContentEdit}><Check className="h-4 w-4 mr-1" />保存</Button>
                       </div>
                     </div>
                   ) : (
@@ -525,12 +437,8 @@ export function PromptDetailDialog({
             {prompt.sourceUrl && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">来源链接</label>
-                <a
-                  href={prompt.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-border text-sm text-primary hover:bg-accent transition-colors"
-                >
+                <a href={prompt.sourceUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-3 rounded-xl bg-muted/50 border border-border text-sm text-primary hover:bg-accent transition-colors">
                   <ExternalLink className="h-4 w-4 shrink-0" />
                   <span className="truncate">{prompt.sourceUrl}</span>
                 </a>
@@ -543,16 +451,15 @@ export function PromptDetailDialog({
                 <label className="text-sm font-medium text-muted-foreground">标签</label>
                 <div className="flex flex-wrap gap-2">
                   {prompt.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="px-2.5 py-1 rounded-lg bg-muted text-xs text-muted-foreground border border-border hover:border-primary/30 transition-colors"
-                    >
+                    <span key={index}
+                      className="px-2.5 py-1 rounded-lg bg-muted text-xs text-muted-foreground border border-border hover:border-primary/30 transition-colors">
                       {tag}
                     </span>
                   ))}
                 </div>
               </div>
             )}
+
           </div>
         </div>
       </DialogContent>
