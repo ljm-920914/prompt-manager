@@ -377,8 +377,13 @@ export async function loadAllData(): Promise<StorageData> {
 }
 
 // ============================================================
-// GitHub Gist 云同步
+// GitHub 仓库文件同步（使用 repo 权限，无需 gist 权限）
 // ============================================================
+
+const SYNC_REPO_OWNER = 'ljm-920914'  // 你的 GitHub 用户名
+const SYNC_REPO_NAME = 'prompt-manager'  // 仓库名
+const SYNC_FILE_PATH = '.prompt-manager/backup.json'
+const SYNC_COMMIT_MSG = 'Prompt Manager: 备份数据'
 
 export const syncApi = {
   /** 获取同步状态 */
@@ -387,24 +392,26 @@ export const syncApi = {
     return {
       connected: !!(meta.syncToken),
       lastSync: meta.lastSync,
-      gistUrl: meta.gistUrl,
+      gistUrl: meta.syncUrl,  // 改为仓库文件 URL
     }
   },
 
   /** 连接 GitHub（保存 PAT） */
   connect: async (token: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const r = await fetch('https://api.github.com/gists', {
+      // 验证 token：用仓库 API 检测权限
+      const r = await fetch(`https://api.github.com/repos/${SYNC_REPO_OWNER}/${SYNC_REPO_NAME}`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }
       })
       if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
-        // 常见错误判断
+        if (r.status === 404) return { success: false, error: `仓库 ${SYNC_REPO_OWNER}/${SYNC_REPO_NAME} 不存在` }
         if (r.status === 401) return { success: false, error: 'Token 无效或已过期，请重新生成' }
-        if (r.status === 403) return { success: false, error: 'Token 权限不足，请确认创建时勾选了 repo（或 gist）权限' }
+        if (r.status === 403) return { success: false, error: 'Token 权限不足，请确认有 repo 权限' }
+        const err = await r.json().catch(() => ({}))
         return { success: false, error: `连接失败(${r.status}): ${err.message || '未知错误'}` }
       }
       await setMeta('syncToken', token)
+      await setMeta('syncUrl', `https://github.com/${SYNC_REPO_OWNER}/${SYNC_REPO_NAME}/blob/main/${SYNC_FILE_PATH}`)
       return { success: true }
     } catch (e) {
       return { success: false, error: '网络错误，浏览器无法访问 GitHub，请检查网络' }
@@ -414,12 +421,11 @@ export const syncApi = {
   /** 断开连接 */
   disconnect: async (): Promise<void> => {
     await setMeta('syncToken', undefined)
-    await setMeta('gistId', undefined)
-    await setMeta('gistUrl', undefined)
+    await setMeta('syncUrl', undefined)
     await setMeta('lastSync', undefined)
   },
 
-  /** 推送到 Gist */
+  /** 推送到仓库 */
   push: async (): Promise<{ success: boolean; error?: string; url?: string }> => {
     const meta = await getMeta()
     const token = meta.syncToken
@@ -431,95 +437,77 @@ export const syncApi = {
       const data = JSON.stringify({ prompts, categories, exportedAt: new Date().toISOString(), version: '1.0' }, null, 2)
 
       const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' }
-      const gistId = meta.gistId
-      let gist: any = null
+      const fileUrl = `https://api.github.com/repos/${SYNC_REPO_OWNER}/${SYNC_REPO_NAME}/contents/${SYNC_FILE_PATH}`
 
-      // 如果有 gistId，先尝试更新
-      if (gistId) {
-        const patchR = await fetch(`https://api.github.com/gists/${gistId}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({
-            description: 'Prompt Manager 数据备份 (自动)',
-            files: { 'prompt-manager-backup.json': { content: data } }
-          })
-        })
-        if (patchR.ok) {
-          gist = await patchR.json()
-        } else if (patchR.status === 404) {
-          // Gist 不存在，清除旧 ID，重新创建
-          console.warn('[Sync] Gist 不存在，将创建新的')
-          await setMeta('gistId', undefined)
-        } else {
-          // 其他错误
-          const err = await patchR.json().catch(() => ({}))
-          return { success: false, error: `推送失败(${patchR.status}): ${err.message || patchR.statusText}` }
+      // 先获取当前文件的 SHA（如果存在）
+      let sha: string | undefined
+      try {
+        const getR = await fetch(fileUrl, { headers })
+        if (getR.ok) {
+          const fileInfo = await getR.json()
+          sha = fileInfo.sha
         }
+      } catch { /* 文件不存在没关系 */ }
+
+      // 推送/更新文件
+      const body: any = {
+        message: SYNC_COMMIT_MSG,
+        content: btoa(unescape(encodeURIComponent(data))), // 中文 UTF-8 转 Base64
+      }
+      if (sha) body.sha = sha // 更新需要 sha
+
+      const r = await fetch(fileUrl, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body)
+      })
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        if (r.status === 401) return { success: false, error: 'Token 已失效，请重新连接' }
+        if (r.status === 403) return { success: false, error: '权限不足，请确认 Token 有 repo 权限' }
+        if (r.status === 404) return { success: false, error: '仓库不存在，请确认用户名和仓库名正确' }
+        return { success: false, error: `推送失败(${r.status}): ${err.message || r.statusText}` }
       }
 
-      // 如果没有 gist（首次 或 旧gist已失效），创建新的
-      if (!gist) {
-        const postR = await fetch('https://api.github.com/gists', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            description: 'Prompt Manager 数据备份 (自动)',
-            public: false,
-            files: { 'prompt-manager-backup.json': { content: data } }
-          })
-        })
-        if (!postR.ok) {
-          const err = await postR.json().catch(() => ({}))
-          if (postR.status === 401) return { success: false, error: 'Token 已失效，请重新连接' }
-          if (postR.status === 403) return { success: false, error: '权限不足，请确认 Token 有 gist 权限' }
-          return { success: false, error: `创建Gist失败(${postR.status}): ${err.message || postR.statusText}` }
-        }
-        gist = await postR.json()
-      }
-
-      await setMeta('gistId', gist.id)
-      await setMeta('gistUrl', gist.html_url)
       await setMeta('lastSync', new Date().toISOString())
-      return { success: true, url: gist.html_url }
+      return { success: true, url: meta.syncUrl }
     } catch (e) {
       return { success: false, error: `网络错误: ${e instanceof Error ? e.message : String(e)}` }
     }
   },
 
-  /** 从 Gist 拉取数据 */
+  /** 从仓库拉取数据 */
   pull: async (): Promise<{ success: boolean; error?: string; count?: number }> => {
     const meta = await getMeta()
     const token = meta.syncToken
-    const gistId = meta.gistId
-    if (!token || !gistId) return { success: false, error: '未连接 GitHub' }
+    if (!token) return { success: false, error: '未连接 GitHub' }
 
     try {
-      const r = await fetch(`https://api.github.com/gists/${gistId}`, {
+      const fileUrl = `https://api.github.com/repos/${SYNC_REPO_OWNER}/${SYNC_REPO_NAME}/contents/${SYNC_FILE_PATH}`
+      const r = await fetch(fileUrl, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }
       })
-      if (!r.ok) return { success: false, error: '拉取失败，Token 可能已失效' }
 
-      const gist = await r.json()
-      const file = gist.files['prompt-manager-backup.json']
-      if (!file) return { success: false, error: 'Gist 中没有找到备份文件' }
+      if (!r.ok) {
+        if (r.status === 404) return { success: false, error: '仓库中没有找到备份文件，请先推送一次' }
+        return { success: false, error: `拉取失败(${r.status})，Token 可能已失效` }
+      }
 
-      const data: StorageData = JSON.parse(file.content)
+      const fileInfo = await r.json()
+      const content = decodeURIComponent(escape(atob(fileInfo.content))) // Base64 UTF-8 解码
+      const data: StorageData = JSON.parse(content)
+
       if (!data.prompts || !data.categories) {
         return { success: false, error: '备份文件格式错误' }
       }
-
-      // 合并数据（以远程为准，远程更新则覆盖本地）
-      const localPrompts = await dbGet<Prompt>(STORE_PROMPTS)
-      const localCategories = await dbGet<Category>(STORE_CATEGORIES)
-      const localPromptIds = new Set(localPrompts.map(p => p.id))
-      const localCategoryIds = new Set(localCategories.map(c => c.id))
 
       // 写入分类
       for (const c of data.categories) {
         await dbPut(STORE_CATEGORIES, c)
       }
 
-      // 写入提示词：以远程为准（覆盖本地已有项）
+      // 写入提示词：以远程为准
       for (const p of data.prompts) {
         await dbPut(STORE_PROMPTS, p)
       }
@@ -528,7 +516,7 @@ export const syncApi = {
       await _syncLocalCache()
       return { success: true, count: data.prompts.length }
     } catch (e) {
-      return { success: false, error: '网络错误' }
+      return { success: false, error: `网络错误: ${e instanceof Error ? e.message : String(e)}` }
     }
   },
 }
