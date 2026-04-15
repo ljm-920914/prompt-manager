@@ -79,8 +79,20 @@ export default function Home() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  // 页面加载时：检查是否已连接，已连接则自动拉取云端数据
   useEffect(() => {
-    syncApi.getStatus().then(setSyncStatus)
+    const init = async () => {
+      const status = await syncApi.getStatus()
+      setSyncStatus(status)
+      if (status.connected) {
+        // 已连接：自动拉取云端数据
+        const result = await syncApi.pull()
+        if (result.success) {
+          await loadData()
+        }
+      }
+    }
+    init()
   }, [])
 
   const handleCreateCategory = async (cat: Omit<Category, 'id'>) => {
