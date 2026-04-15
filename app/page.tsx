@@ -27,7 +27,7 @@ import { DropZone } from "@/components/drop-zone"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-const APP_VERSION = "1.2.0"
+const APP_VERSION = "1.3.0"
 
 const containerVariants = {
   hidden: { opacity: 0 },

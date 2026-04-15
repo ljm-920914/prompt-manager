@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Trash2, Palette, Check } from "lucide-react"
+import { Plus, Trash2, Palette, Check, X, Edit2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Category } from "@/lib/storage"
 
@@ -20,6 +20,7 @@ interface CategoryManagerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (category: Omit<Category, "id">) => void
+  onUpdate: (id: string, updates: Partial<Category>) => void
   onDelete: (id: string) => void
 }
 
@@ -41,6 +42,7 @@ export function CategoryManager({
   open,
   onOpenChange,
   onCreate,
+  onUpdate,
   onDelete,
 }: CategoryManagerProps) {
   const [newCategory, setNewCategory] = useState({
@@ -48,6 +50,10 @@ export function CategoryManager({
     description: "",
     color: PRESET_COLORS[0].color,
   })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editColor, setEditColor] = useState("")
+  const [showColorPicker, setShowColorPicker] = useState<string | null>(null)
 
   const handleCreate = () => {
     if (!newCategory.name.trim()) {
@@ -68,6 +74,29 @@ export function CategoryManager({
     if (!confirm(`确定要删除分类 "${name}" 吗？该分类下的提示词将变为未分类。`)) return
     onDelete(id)
     toast.success("分类已删除")
+  }
+
+  const startEditing = (category: Category) => {
+    setEditingId(category.id)
+    setEditName(category.name)
+    setEditColor(category.color)
+    setShowColorPicker(null)
+  }
+
+  const saveEdit = (id: string) => {
+    if (!editName.trim()) {
+      toast.error("分类名称不能为空")
+      return
+    }
+    onUpdate(id, { name: editName.trim(), color: editColor })
+    setEditingId(null)
+    setShowColorPicker(null)
+    toast.success("分类已更新")
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setShowColorPicker(null)
   }
 
   return (
@@ -129,20 +158,79 @@ export function CategoryManager({
                     initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     className="flex items-center justify-between p-3 bg-muted/50 rounded-xl border border-border">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{category.name}</p>
-                        {category.description && (
-                          <p className="text-xs text-muted-foreground truncate">{category.description}</p>
-                        )}
+                    {editingId === category.id ? (
+                      // 编辑模式
+                      <div className="flex-1 flex items-center gap-2">
+                        <div className="relative">
+                          <button 
+                            onClick={() => setShowColorPicker(showColorPicker === category.id ? null : category.id)}
+                            className="w-8 h-8 rounded-lg shrink-0 ring-2 ring-offset-1 ring-offset-background"
+                            style={{ backgroundColor: editColor }}
+                          />
+                          {showColorPicker === category.id && (
+                            <div className="absolute top-full mt-1 left-0 p-2 bg-background border border-border rounded-lg shadow-lg z-10 grid grid-cols-5 gap-1">
+                              {PRESET_COLORS.map((c) => (
+                                <button key={c.color}
+                                  onClick={() => { setEditColor(c.color); setShowColorPicker(null); }}
+                                  className="w-6 h-6 rounded-md hover:scale-110 transition-transform"
+                                  style={{ backgroundColor: c.color }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <Input 
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="flex-1 h-8 bg-background"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEdit(category.id)
+                            if (e.key === 'Escape') cancelEdit()
+                          }}
+                        />
                       </div>
+                    ) : (
+                      // 显示模式
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{category.name}</p>
+                          {category.description && (
+                            <p className="text-xs text-muted-foreground truncate">{category.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {editingId === category.id ? (
+                        <>
+                          <Button variant="ghost" size="icon"
+                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={() => saveEdit(category.id)}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={cancelEdit}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            onClick={() => startEditing(category)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDelete(category.id, category.name)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
-                    <Button variant="ghost" size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-                      onClick={() => handleDelete(category.id, category.name)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </motion.div>
                 ))}
               </AnimatePresence>
