@@ -432,11 +432,11 @@ export const syncApi = {
 
       const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' }
       const gistId = meta.gistId
+      let gist: any = null
 
-      let r: Response
+      // 如果有 gistId，先尝试更新
       if (gistId) {
-        // 更新已有 Gist
-        r = await fetch(`https://api.github.com/gists/${gistId}`, {
+        const patchR = await fetch(`https://api.github.com/gists/${gistId}`, {
           method: 'PATCH',
           headers,
           body: JSON.stringify({
@@ -444,9 +444,22 @@ export const syncApi = {
             files: { 'prompt-manager-backup.json': { content: data } }
           })
         })
-      } else {
-        // 创建新 Gist
-        r = await fetch('https://api.github.com/gists', {
+        if (patchR.ok) {
+          gist = await patchR.json()
+        } else if (patchR.status === 404) {
+          // Gist 不存在，清除旧 ID，重新创建
+          console.warn('[Sync] Gist 不存在，将创建新的')
+          await setMeta('gistId', undefined)
+        } else {
+          // 其他错误
+          const err = await patchR.json().catch(() => ({}))
+          return { success: false, error: `推送失败(${patchR.status}): ${err.message || patchR.statusText}` }
+        }
+      }
+
+      // 如果没有 gist（首次 或 旧gist已失效），创建新的
+      if (!gist) {
+        const postR = await fetch('https://api.github.com/gists', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -455,20 +468,21 @@ export const syncApi = {
             files: { 'prompt-manager-backup.json': { content: data } }
           })
         })
+        if (!postR.ok) {
+          const err = await postR.json().catch(() => ({}))
+          if (postR.status === 401) return { success: false, error: 'Token 已失效，请重新连接' }
+          if (postR.status === 403) return { success: false, error: '权限不足，请确认 Token 有 gist 权限' }
+          return { success: false, error: `创建Gist失败(${postR.status}): ${err.message || postR.statusText}` }
+        }
+        gist = await postR.json()
       }
 
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
-        return { success: false, error: err.message || '推送失败' }
-      }
-
-      const gist = await r.json()
       await setMeta('gistId', gist.id)
       await setMeta('gistUrl', gist.html_url)
       await setMeta('lastSync', new Date().toISOString())
       return { success: true, url: gist.html_url }
     } catch (e) {
-      return { success: false, error: '网络错误' }
+      return { success: false, error: `网络错误: ${e instanceof Error ? e.message : String(e)}` }
     }
   },
 
