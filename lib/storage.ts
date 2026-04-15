@@ -336,8 +336,38 @@ async function _syncLocalCache(): Promise<void> {
 
 export async function loadAllData(): Promise<StorageData> {
   try {
+    // 初始化 IndexedDB（如不存在）
+    await openDB()
+
+    // 检查是否需要从旧 localStorage 迁移数据
+    const migrated = localStorage.getItem('prompt-manager-migrated-v2')
+    if (!migrated) {
+      const oldRaw = localStorage.getItem('prompt-manager-data-v2')
+      if (oldRaw) {
+        try {
+          const oldData: StorageData = JSON.parse(oldRaw)
+          if (oldData.prompts?.length || oldData.categories?.length) {
+            console.log(`[迁移] 从旧存储导入 ${oldData.prompts?.length || 0} 条提示词`)
+            for (const p of (oldData.prompts || [])) await dbPut(STORE_PROMPTS, p)
+            for (const c of (oldData.categories || [])) await dbPut(STORE_CATEGORIES, c)
+          }
+          localStorage.setItem('prompt-manager-migrated-v2', '1')
+        } catch (migErr) {
+          console.warn('[迁移] 旧数据迁移失败:', migErr)
+        }
+      }
+    }
+
     const prompts = await dbGet<Prompt>(STORE_PROMPTS)
     const categories = await dbGet<Category>(STORE_CATEGORIES)
+
+    // 初始化默认分类（如为空）
+    if (categories.length === 0) {
+      for (const c of DEFAULT_CATEGORIES) await dbPut(STORE_CATEGORIES, c)
+      await _syncLocalCache()
+      return { prompts: prompts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), categories: DEFAULT_CATEGORIES }
+    }
+
     await _syncLocalCache()
     return { prompts: prompts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), categories }
   } catch (e) {
@@ -364,18 +394,20 @@ export const syncApi = {
   /** 连接 GitHub（保存 PAT） */
   connect: async (token: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // 验证 token 是否有效
       const r = await fetch('https://api.github.com/gists', {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }
       })
       if (!r.ok) {
         const err = await r.json().catch(() => ({}))
-        return { success: false, error: err.message || 'Token 无效，请检查是否正确' }
+        // 常见错误判断
+        if (r.status === 401) return { success: false, error: 'Token 无效或已过期，请重新生成' }
+        if (r.status === 403) return { success: false, error: 'Token 权限不足，请确认创建时勾选了 repo（或 gist）权限' }
+        return { success: false, error: `连接失败(${r.status}): ${err.message || '未知错误'}` }
       }
       await setMeta('syncToken', token)
       return { success: true }
     } catch (e) {
-      return { success: false, error: '网络错误，请检查网络后重试' }
+      return { success: false, error: '网络错误，浏览器无法访问 GitHub，请检查网络' }
     }
   },
 
@@ -462,25 +494,20 @@ export const syncApi = {
         return { success: false, error: '备份文件格式错误' }
       }
 
-      // 合并数据（新数据优先，保留本地新创建的）
+      // 合并数据（以远程为准，远程更新则覆盖本地）
       const localPrompts = await dbGet<Prompt>(STORE_PROMPTS)
-      const localIds = new Set(localPrompts.map(p => p.id))
-      const remoteIds = new Set(data.prompts.map(p => p.id))
+      const localCategories = await dbGet<Category>(STORE_CATEGORIES)
+      const localPromptIds = new Set(localPrompts.map(p => p.id))
+      const localCategoryIds = new Set(localCategories.map(c => c.id))
 
-      // 拉取远程新增的（本地没有的）
-      let added = 0
-      for (const p of data.prompts) {
-        if (!localIds.has(p.id)) { await dbPut(STORE_PROMPTS, p); added++ }
-      }
-      for (const c of data.categories) {
-        if (!localIds.has(c.id)) await dbPut(STORE_CATEGORIES, c)
-      }
-      // 简单策略：更新已存在的（以远程为准）
-      for (const p of data.prompts) {
-        if (localIds.has(p.id)) await dbPut(STORE_PROMPTS, p)
-      }
+      // 写入分类
       for (const c of data.categories) {
         await dbPut(STORE_CATEGORIES, c)
+      }
+
+      // 写入提示词：以远程为准（覆盖本地已有项）
+      for (const p of data.prompts) {
+        await dbPut(STORE_PROMPTS, p)
       }
 
       await setMeta('lastSync', new Date().toISOString())
