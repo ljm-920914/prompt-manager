@@ -60,8 +60,15 @@ export function QuickInput({ onSaved }: QuickInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [detectedType, setDetectedType] = useState<'TEXT' | 'LINK' | 'IMAGE_URL' | 'VIDEO_URL'>('TEXT')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isProcessingRef = useRef(false)
+
+  // 加载分类
+  useEffect(() => {
+    categoryApi.getAll().then(setCategories)
+  }, [])
 
   // 自动调整高度
   useEffect(() => {
@@ -97,7 +104,10 @@ export function QuickInput({ onSaved }: QuickInputProps) {
 
   // 处理图片文件
   const processImageFile = async (file: File) => {
+    if (isProcessingRef.current) return
+    isProcessingRef.current = true
     setIsProcessing(true)
+    
     try {
       const reader = new FileReader()
       reader.onload = async (e) => {
@@ -105,9 +115,9 @@ export function QuickInput({ onSaved }: QuickInputProps) {
         const result = await aiExtract.fromImage(file.name, base64)
         
         // 自动分类
-        const categoryId = await autoCategorize(result.content, result.tags)
+        const categoryId = autoCategorize(result.content, result.tags)
         
-        const created = promptApi.create({
+        const created = await promptApi.create({
           title: result.title,
           content: result.content,
           sourceType: 'IMAGE',
@@ -125,17 +135,18 @@ export function QuickInput({ onSaved }: QuickInputProps) {
           toast.error('存储失败，可能超出空间限制')
         }
         setIsProcessing(false)
+        isProcessingRef.current = false
       }
       reader.readAsDataURL(file)
     } catch (error) {
       toast.error('处理图片失败')
       setIsProcessing(false)
+      isProcessingRef.current = false
     }
   }
 
-  // 自动分类
-  const autoCategorize = async (content: string, tags: string[]): Promise<string | undefined> => {
-    const categories = categoryApi.getAll()
+  // 自动分类（同步版本）
+  const autoCategorize = (content: string, tags: string[]): string | undefined => {
     if (categories.length === 0) return undefined
     
     const contentLower = content.toLowerCase()
@@ -175,8 +186,9 @@ export function QuickInput({ onSaved }: QuickInputProps) {
 
   // 处理输入内容
   const processInput = async () => {
-    if (!input.trim() || isProcessing) return
+    if (!input.trim() || isProcessingRef.current) return
     
+    isProcessingRef.current = true
     setIsProcessing(true)
     
     try {
@@ -215,9 +227,9 @@ export function QuickInput({ onSaved }: QuickInputProps) {
       }
       
       // 自动分类
-      const categoryId = await autoCategorize(result.content, result.tags)
+      const categoryId = autoCategorize(result.content, result.tags)
       
-      const created = promptApi.create({
+      const created = await promptApi.create({
         title: result.title,
         content: result.content,
         sourceType,
@@ -239,6 +251,7 @@ export function QuickInput({ onSaved }: QuickInputProps) {
       toast.error('处理失败，请重试')
     } finally {
       setIsProcessing(false)
+      isProcessingRef.current = false
     }
   }
 
@@ -249,16 +262,21 @@ export function QuickInput({ onSaved }: QuickInputProps) {
     setTimeout(() => setShowSuccess(false), 2000)
   }
 
-  // 处理失焦
+  // 处理失焦 - 点击外部自动保存
   const handleBlur = (e: React.FocusEvent) => {
-    // 检查是否点击了容器内的其他元素
-    if (containerRef.current?.contains(e.relatedTarget as Node)) {
-      return
-    }
-    setIsFocused(false)
-    if (input.trim()) {
-      processInput()
-    }
+    // 延迟检查，让点击事件先处理
+    setTimeout(() => {
+      // 检查当前焦点是否还在容器内
+      const activeElement = document.activeElement
+      const isStillFocused = containerRef.current?.contains(activeElement as Node)
+      
+      if (!isStillFocused) {
+        setIsFocused(false)
+        if (input.trim() && !isProcessingRef.current) {
+          processInput()
+        }
+      }
+    }, 150)
   }
 
   // 处理按键
@@ -335,7 +353,7 @@ export function QuickInput({ onSaved }: QuickInputProps) {
               
               {/* 快捷键提示 */}
               <span className="text-xs text-muted-foreground hidden sm:inline">
-                Enter 保存 · Esc 取消
+                Enter 保存 · 失焦自动保存 · Esc 取消
               </span>
             </div>
           </div>
@@ -350,7 +368,7 @@ export function QuickInput({ onSaved }: QuickInputProps) {
               onBlur={handleBlur}
               onPaste={handlePaste}
               onKeyDown={handleKeyDown}
-              placeholder="粘贴提示词、链接、图片... 按 Enter 自动保存"
+              placeholder="粘贴提示词、链接、图片... 按 Enter 或点击外部自动保存"
               className="w-full px-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none min-h-[60px] max-h-[200px]"
               rows={1}
               disabled={isProcessing}

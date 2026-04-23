@@ -194,7 +194,7 @@ export function PromptDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 gap-0 bg-card border-border">
+      <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden p-0 gap-0 bg-card border-border">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4 border-b border-border">
           <div className="flex-1 min-w-0 pr-4">
@@ -293,7 +293,7 @@ export function PromptDetailDialog({
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-180px)]">
+        <div className="overflow-y-auto max-h-[calc(95vh-180px)]">
           <div className="p-6 space-y-6">
             {/* Category selector */}
             <div className="space-y-2">
@@ -365,7 +365,7 @@ export function PromptDetailDialog({
                           <video
                             ref={videoRef}
                             src={getVideoSource()!}
-                            className="w-full max-h-[500px] object-contain"
+                            className="w-full max-h-[70vh] object-contain"
                             onEnded={() => setIsPlaying(false)}
                             onPause={() => setIsPlaying(false)}
                             onPlay={() => setIsPlaying(true)}
@@ -429,7 +429,7 @@ export function PromptDetailDialog({
                           <img
                             src={prompt.sourceVideoData}
                             alt={prompt.title}
-                            className="w-full max-h-[400px] object-contain"
+                            className="w-full max-h-[70vh] object-contain"
                           />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                             <div className="text-center">
@@ -447,11 +447,12 @@ export function PromptDetailDialog({
                       )}
                     </div>
                   ) : prompt.sourceType === 'IMAGE' ? (
-                    <div className="relative bg-muted">
+                    <div className="relative bg-muted flex items-center justify-center min-h-[200px]">
                       <img
                         src={getImageSource()!}
                         alt={prompt.title}
-                        className="w-full max-h-[500px] object-contain"
+                        className="max-w-full max-h-[75vh] w-auto h-auto object-contain"
+                        style={{ maxHeight: '75vh' }}
                       />
                       <div className="absolute bottom-2 right-2">
                         <span className="px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
