@@ -9,24 +9,39 @@ export function ThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const toggleTheme = () => {
-    const current = resolvedTheme || theme
-    setTheme(current === "dark" ? "light" : "dark")
+    const currentTheme = resolvedTheme || theme
+    setTheme(currentTheme === "dark" ? "light" : "dark")
   }
 
   if (!mounted) {
-    return <Button variant="ghost" size="icon" className="text-[#6b6b7b]"><Sun className="h-5 w-5" /></Button>
+    return (
+      <Button variant="ghost" size="icon" className="text-[#6b6b7b]">
+        <Sun className="h-5 w-5" />
+      </Button>
+    )
   }
 
-  const isDark = (resolvedTheme || theme) === "dark"
+  const currentTheme = resolvedTheme || theme
+  const isDark = currentTheme === "dark"
 
   return (
-    <Button variant="ghost" size="icon" onClick={toggleTheme}
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggleTheme}
       title={isDark ? "切换到日间模式" : "切换到夜间模式"}
-      className="text-[#6b6b7b] hover:text-white">
-      {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+      className="text-[#6b6b7b] hover:text-white"
+    >
+      {isDark ? (
+        <Sun className="h-5 w-5" />
+      ) : (
+        <Moon className="h-5 w-5" />
+      )}
     </Button>
   )
 }

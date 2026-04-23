@@ -622,7 +622,13 @@ export const aiExtract = {
     await new Promise(r => setTimeout(r, 1500))
     return {
       title: `图片提取: ${fileName}`,
-      content: `// 从图片提取的提示词\n\npositive prompt:\n- subject, style, lighting, colors\n\nnegative prompt:\n- blurry, low quality`,
+      content: `// 从图片提取的提示词
+
+positive prompt:
+- subject, style, lighting, colors
+
+negative prompt:
+- blurry, low quality`,
       tags: ['AI绘画', '图片提取'],
       imageData: base64Data
     }
@@ -654,10 +660,34 @@ export const aiExtract = {
 
     return {
       title: `视频提取: ${file.name}`,
-      content: `// 从视频提取的提示词\n\n场景、风格、色调、氛围分析结果`,
+      content: `// 从视频提取的提示词
+
+场景、风格、色调、氛围分析结果`,
       tags: ['视频分析'],
       thumbnail: thumbnail ?? undefined,
       videoData
+    }
+  },
+
+  fromVideoUrl: async (url: string) => {
+    await new Promise(r => setTimeout(r, 1000))
+    const fileName = url.split('/').pop() || 'video'
+    return {
+      title: `视频链接: ${fileName}`,
+      content: `// 从视频链接提取的提示词
+// 来源: ${url}
+
+视频内容分析:
+- 场景: 动态场景
+- 风格: 待分析
+- 色调: 待分析
+- 氛围: 待分析
+
+生成提示词:
+[基于视频内容生成的提示词将显示在这里]
+
+注意: 实际使用时需要后端服务下载并分析视频内容。`,
+      tags: ['视频链接', '视频分析', '待处理']
     }
   },
 
@@ -673,7 +703,42 @@ export const aiExtract = {
 
   fromText: async (text: string) => {
     await new Promise(r => setTimeout(r, 500))
-    const isPrompt = text.includes('prompt') || text.includes('提示词') || text.length > 100
-    return { title: isPrompt ? '识别的提示词' : '文本内容', content: text, tags: isPrompt ? ['已识别'] : ['文本'] }
+    
+    // 智能识别提示词特征
+    const promptPatterns = [
+      /masterpiece|best quality|highly detailed/i,
+      /prompt|提示词|咒语/i,
+      /positive|negative/i,
+      /style:|artist:|by\s+\w+/i,
+      /\d+\s*(k|px|pixel)/i,
+    ]
+    
+    const isPrompt = promptPatterns.some(pattern => pattern.test(text)) || text.length > 100
+    
+    // 尝试提取标题（第一行或前30字符）
+    let title = '识别的提示词'
+    if (text.includes('\n')) {
+      const firstLine = text.split('\n')[0].trim()
+      if (firstLine.length > 5 && firstLine.length < 50) {
+        title = firstLine
+      }
+    }
+    
+    // 生成智能标签
+    const smartTags: string[] = []
+    if (/midjourney|mj|niji/i.test(text)) smartTags.push('Midjourney')
+    if (/stable.diffusion|sd|sdxl/i.test(text)) smartTags.push('Stable Diffusion')
+    if (/dalle|dall.e/i.test(text)) smartTags.push('DALL-E')
+    if (/chatgpt|gpt|claude/i.test(text)) smartTags.push('ChatGPT')
+    if (/portrait|character|person/i.test(text)) smartTags.push('人物')
+    if (/landscape|scenery|nature/i.test(text)) smartTags.push('风景')
+    if (/anime|manga|cartoon/i.test(text)) smartTags.push('动漫')
+    if (/realistic|photo|photography/i.test(text)) smartTags.push('写实')
+    
+    if (smartTags.length === 0) {
+      smartTags.push(isPrompt ? '提示词' : '文本')
+    }
+    
+    return { title, content: text, tags: smartTags }
   }
 }

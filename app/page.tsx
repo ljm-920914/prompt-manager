@@ -24,10 +24,11 @@ import { PromptDetailDialog } from "@/components/prompt-detail-dialog"
 import { CategoryManager } from "@/components/category-manager"
 import { EmptyState } from "@/components/empty-state"
 import { DropZone } from "@/components/drop-zone"
+import { QuickInput } from "@/components/quick-input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-const APP_VERSION = "1.3.0"
+const APP_VERSION = "1.4.0"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -346,7 +347,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground pb-32">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-xl">
         <div className="container mx-auto px-4 py-3">
@@ -709,6 +710,9 @@ export default function Home() {
           </main>
         </div>
       </div>
+
+      {/* Quick Input - Fixed Bottom */}
+      <QuickInput onSaved={loadData} />
 
       {/* Detail Dialog */}
       {selectedPrompt && (
